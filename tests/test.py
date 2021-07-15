@@ -65,7 +65,7 @@ with MultithreadedFlow(iterator) as flow:
     flow.add_function('add one', add_one)
     flow.add_function('add two', add_two)
 
-    for i, v in enumerate(flow.get_output()):
+    for i, v in enumerate(flow):
         print(i, v.get_result())
 
     print('results count:', flow.get_successful_job_count(), flow.get_failed_job_count())

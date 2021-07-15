@@ -128,7 +128,6 @@ class MultithreadedGeneratorBase:
 
         self._input_queue = Queue()  # for storing the job to execute
         self._output_queue = Queue()  # for storing the job result
-        # change to thread events instead of boolean values
         self._done_consuming = Event()
         self._done_producing = Event()
 
@@ -354,6 +353,9 @@ class MultithreadedGeneratorBase:
     def __exit__(self, exc_type, exc_val, exc_tb):
         self._executor.__exit__(exc_type=exc_type, exc_val=exc_val, exc_tb=exc_tb)
 
+    def __iter__(self):
+        yield from self.get_output()
+
 
 class MultithreadedGenerator(ABC, MultithreadedGeneratorBase):
     def __init__(self, **kwargs):
@@ -467,3 +469,6 @@ class MultithreadedFlow:
     def __exit__(self, exc_type, exc_val, exc_tb):
         if self._multithreaded_generator:
             self._multithreaded_generator.__exit__(exc_type=exc_type, exc_val=exc_val, exc_tb=exc_tb)
+
+    def __iter__(self):
+        yield from self.get_output()

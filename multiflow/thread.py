@@ -386,8 +386,8 @@ class MultithreadedFlow:
 
         self._multithreaded_generator = None
 
-        self._initial_has_at_least_one = False
-        self._still_initially_consuming = True
+        self._initial_has_at_least_one = Event()
+        self._done_initially_consuming = Event()
         self._initial_count = None
 
         self._process_queue = Queue()
@@ -414,18 +414,19 @@ class MultithreadedFlow:
     def _initial_consumer(self):
         initial_name, initial_fn = self._fn_calls[0]
         initial_count = 0
-        for x in self._fn(*self._args, **self._kwargs):
-            self._initial_has_at_least_one = True
+        for i, x in enumerate(self._fn(*self._args, **self._kwargs)):
+            if i == 0:
+                self._initial_has_at_least_one.set()
             initial_count += 1
             self._multithreaded_generator.submit_job_with_jid(0, initial_name, initial_fn, x)
 
         self._initial_count = initial_count
 
-        self._still_initially_consuming = False
+        self._done_initially_consuming.set()
 
     def _process_flow(self):
-        while not self._initial_has_at_least_one:
-            if not self._still_initially_consuming:
+        while not self._initial_has_at_least_one.is_set():
+            if self._done_initially_consuming.is_set():
                 return
 
         last_jid_count = 0

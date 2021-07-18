@@ -144,8 +144,8 @@ class MultithreadedGeneratorBase:
 
         self._input_queue = Queue()  # for storing the job to execute
         self._output_queue = Queue()  # for storing the job result
-        self._done_consuming = Event()
-        self._done_producing = Event()
+        self._done_consuming = Event() # if it is done consuming from input function
+        self._done_producing = Event()  # if it is done producing the results
 
         # consumer function and it's arguments
         self._consumer_fn = None
@@ -192,7 +192,8 @@ class MultithreadedGeneratorBase:
 
         :return: each item in the generator object is an instance of JobOutput
         """
-        assert self._consumer_fn, 'Must set the consumer function'
+        if not self._consumer_fn:
+            raise FlowException('Must set the consumer function')
 
         producer_thread = Thread(target=self._producer, daemon=True)
         consumer_thread = Thread(target=self._wrap_consumer, daemon=True)
@@ -393,22 +394,28 @@ class MultithreadedGenerator(ABC, MultithreadedGeneratorBase):
 
 class MultithreadedFlow:
     def __init__(self, fn: Callable, *args, **kwargs):
+        # stores the input function iterator to consume and its arguments
         self._fn = fn
         self._args = args
         self._kwargs = kwargs
 
+        # to keep track of the order of functions to call
         self._fn_calls = []
         self._last_jid = 0
 
+        # an instance of the MultithreadedGeneratorBase
         self._multithreaded_generator = None
 
-        self._initial_has_at_least_one = Event()
-        self._done_initially_consuming = Event()
+        self._initial_has_at_least_one = Event()  # to make sure there is at least one item consumed
+        self._done_initially_consuming = Event()  # keeps track if the first consumer is done
         self._initial_count = None
 
         self._process_queue = Queue()
 
     def set_params(self, **kwargs):
+        """
+        See MultithreadedGeneratorBase for the kwargs that you can set
+        """
         self._multithreaded_generator = MultithreadedGeneratorBase(**kwargs)
         self._multithreaded_generator.set_consumer(self._consumer)
 
@@ -467,7 +474,7 @@ class MultithreadedFlow:
         initial_consumer_thread.join()
         process_flow_thread.join()
 
-    def get_output(self):
+    def get_output(self) -> Generator[JobOutput, None, None]:
         if not self._fn_calls:
             raise FlowException('Must add at least one consuming function')
 

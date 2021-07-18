@@ -21,6 +21,13 @@ class DummyItem:
         pass
 
 
+class FlowException(Exception):
+    """
+    Exception to be raised within the multiflow package
+    """
+    pass
+
+
 class StoppableThread(Thread):
     def __init__(self, *args, **kwargs):
         """
@@ -461,6 +468,9 @@ class MultithreadedFlow:
         process_flow_thread.join()
 
     def get_output(self):
+        if not self._fn_calls:
+            raise FlowException('Must add at least one consuming function')
+
         # initialize multithreaded generator if there were no parameters set
         if not self._multithreaded_generator:
             self.set_params()

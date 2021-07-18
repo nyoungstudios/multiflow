@@ -2,6 +2,7 @@ import unittest
 
 from multiflow.utils import *
 
+
 class TestUtils(unittest.TestCase):
     def test_pluralize_zero(self):
         result = pluralize(0)

@@ -1,3 +1,4 @@
+import threading
 import unittest
 
 from multiflow import MultithreadedGeneratorBase, MultithreadedGenerator, MultithreadedFlow, FlowException
@@ -13,6 +14,16 @@ def returns_item(item):
 
 
 class TestFlow(unittest.TestCase):
+    def setUp(self) -> None:
+        self.thread_count = threading.active_count()
+        self.assertEqual(self.thread_count, 1)
+
+    def tearDown(self) -> None:
+        final_thread_count = threading.active_count()
+        self.assertEqual(self.thread_count, final_thread_count)
+        self.assertEqual(self.thread_count, 1)
+        self.thread_count = None
+
     def test_no_consumer(self):
         try:
             with MultithreadedFlow(iterator, 500) as flow:
@@ -32,5 +43,3 @@ class TestFlow(unittest.TestCase):
             count = flow.get_successful_job_count() + flow.get_failed_job_count()
 
         self.assertEqual(count, expected_count)
-
-

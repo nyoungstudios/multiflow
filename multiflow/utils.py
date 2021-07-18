@@ -7,8 +7,8 @@ def calc_args(fn):
     """
     Calculates the number of arguments a function accepts from its signature
 
-    @param fn: A function
-    @return: The number of arguments of a function
+    :param fn: A function
+    :return: The number of arguments of a function
     """
     all_args_count = fn.__code__.co_argcount
 
@@ -25,7 +25,7 @@ def pluralize(count: int) -> str:
     Returns string '' if count is equal to one otherwise 's'. Useful for making print/logging statements grammatically
     correct.
 
-    @param count: The numerical count
-    @return: A string if the noun needs to be plural or not
+    :param count: The numerical count
+    :return: A string if the noun needs to be plural or not
     """
     return '' if count == 1 else 's'

@@ -15,6 +15,9 @@ from multiflow.utils import calc_args, pluralize
 
 class DummyItem:
     def __init__(self):
+        """
+        Dummy class to signify the last item in the thread pool
+        """
         pass
 
 
@@ -38,11 +41,11 @@ class JobOutput:
         """
         Data class to hold the output from the MultithreadedGenerator
 
-        @param success: If True, the job was successful; otherwise, it failed
-        @param attempts: The number of attempts it ran the job
-        @param job_id: The job id
-        @param result: If successful, the output of the job run
-        @param exception: If not successful, the exception caught
+        :param success: If True, the job was successful; otherwise, it failed
+        :param attempts: The number of attempts it ran the job
+        :param job_id: The job id
+        :param result: If successful, the output of the job run
+        :param exception: If not successful, the exception caught
         """
         self._success = success
         self._attempts = attempts
@@ -80,6 +83,12 @@ class JobOutput:
         """
         return self._exception
 
+    def __bool__(self):
+        return self.is_successful()
+
+    def __repr__(self):
+        return str(self.get_result())
+
 
 class MultithreadedGeneratorBase:
     def __init__(
@@ -100,20 +109,20 @@ class MultithreadedGeneratorBase:
         This class enables the ability to consume a generator function from one thread pool and put it into another
         thread pool while returning a generator function
 
-        @param max_workers: The maximum number of workers to use in the thread pool
-        @param catch_exception: If True, will catch any exception in each individual job so it won't cause the thread
+        :param max_workers: The maximum number of workers to use in the thread pool
+        :param catch_exception: If True, will catch any exception in each individual job so it won't cause the thread
             pool to stop working
-        @param retry_count: The number of additional tries to retry the job if it fails
-        @param sleep_seed: If a job failed, it will retry after sleeping the job attempt number multiplied by this
+        :param retry_count: The number of additional tries to retry the job if it fails
+        :param sleep_seed: If a job failed, it will retry after sleeping the job attempt number multiplied by this
             number. Any number less than or equal to zero will result in not sleeping between retries
-        @param logger: A logger to use for periodic logging and error messages
-        @param log_interval: The time in seconds to log the periodic success and failure statuses
-        @param log_periodically: If True, will log periodic success and failure status message
-        @param log_warning: If True, will log warning messages
-        @param log_error: If true, will log error messages
-        @param log_summary: If True, will log the total job success and failure count after all the jobs have been
+        :param logger: A logger to use for periodic logging and error messages
+        :param log_interval: The time in seconds to log the periodic success and failure statuses
+        :param log_periodically: If True, will log periodic success and failure status message
+        :param log_warning: If True, will log warning messages
+        :param log_error: If true, will log error messages
+        :param log_summary: If True, will log the total job success and failure count after all the jobs have been
             complete
-        @param log_function: If provided, will call this function instead of the default periodic logger. Function must
+        :param log_function: If provided, will call this function instead of the default periodic logger. Function must
             have 2 or 3 arguments. The first argument will be passed the number of successful jobs so far, the second
             will be passed the number of failed jobs. And the third if present, will be passed the job name
         """
@@ -174,7 +183,7 @@ class MultithreadedGeneratorBase:
         """
         Returns a generator object
 
-        @return: each item in the generator object is an instance of JobOutput
+        :return: each item in the generator object is an instance of JobOutput
         """
         assert self._consumer_fn, 'Must set the consumer function'
 
@@ -293,9 +302,9 @@ class MultithreadedGeneratorBase:
         for value in self.generator_function:
             self.submit_job(task_function, *args, **kwargs)
 
-        @param fn: The consumer function
-        @param args: The args to the consumer function
-        @param kwargs: The kwargs to the consumer function
+        :param fn: The consumer function
+        :param args: The args to the consumer function
+        :param kwargs: The kwargs to the consumer function
         """
         self._consumer_fn = fn
         self._consumer_args = args

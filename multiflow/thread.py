@@ -144,7 +144,7 @@ class MultithreadedGeneratorBase:
 
         self._input_queue = Queue()  # for storing the job to execute
         self._output_queue = Queue()  # for storing the job result
-        self._done_consuming = Event() # if it is done consuming from input function
+        self._done_consuming = Event()  # if it is done consuming from input function
         self._done_producing = Event()  # if it is done producing the results
 
         # consumer function and it's arguments

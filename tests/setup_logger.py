@@ -3,6 +3,7 @@ import sys
 
 LOG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 
+
 def get_logger(name, log_format=LOG_FORMAT):
     logger = logging.getLogger(name)
     handler = logging.StreamHandler(stream=sys.stdout)

@@ -5,6 +5,7 @@ import unittest
 from multiflow import MultithreadedGeneratorBase, MultithreadedGenerator, MultithreadedFlow, FlowException
 from tests.setup_logger import get_logger
 
+
 def iterator(num):
     for i in range(num):
         yield i
@@ -29,7 +30,7 @@ class TestFlow(unittest.TestCase):
         try:
             with MultithreadedFlow(iterator, 500) as flow:
                 for output in flow:
-                    print(output)
+                    pass
         except Exception as e:
             self.assertIsInstance(e, FlowException)
 
@@ -39,7 +40,7 @@ class TestFlow(unittest.TestCase):
             flow.add_function('returns item', returns_item)
 
             for output in flow:
-                print(output)
+                pass
 
             count = flow.get_successful_job_count() + flow.get_failed_job_count()
 
@@ -60,7 +61,6 @@ class TestFlow(unittest.TestCase):
 
             for output in flow:
                 items.append(output.get_result())
-
 
         for i in range(3, expected_count + 3):
             self.assertIn(i, items)
@@ -116,7 +116,7 @@ class TestFlow(unittest.TestCase):
                     log_error=True
                 ) as test_exception:
                     for output in test_exception:
-                        pass
+                        self.assertEqual(output.get_num_of_attempts(), 3)
 
                     success_count = test_exception.get_successful_job_count()
                     failed_count = test_exception.get_failed_job_count()

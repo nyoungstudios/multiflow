@@ -1,8 +1,9 @@
+import logging
 import threading
 import unittest
 
 from multiflow import MultithreadedGeneratorBase, MultithreadedGenerator, MultithreadedFlow, FlowException
-
+from tests.setup_logger import get_logger
 
 def iterator(num):
     for i in range(num):
@@ -14,11 +15,11 @@ def returns_item(item):
 
 
 class TestFlow(unittest.TestCase):
-    def setUp(self) -> None:
+    def setUp(self):
         self.thread_count = threading.active_count()
         self.assertEqual(self.thread_count, 1)
 
-    def tearDown(self) -> None:
+    def tearDown(self):
         final_thread_count = threading.active_count()
         self.assertEqual(self.thread_count, final_thread_count)
         self.assertEqual(self.thread_count, 1)
@@ -43,3 +44,94 @@ class TestFlow(unittest.TestCase):
             count = flow.get_successful_job_count() + flow.get_failed_job_count()
 
         self.assertEqual(count, expected_count)
+
+    def test_flow_two_functions(self):
+        def add_one(value):
+            return value + 1
+
+        def add_two(value):
+            return value + 2
+
+        expected_count = 5
+        items = []
+        with MultithreadedFlow(iterator, expected_count) as flow:
+            flow.add_function('add one', add_one)
+            flow.add_function('add two', add_two)
+
+            for output in flow:
+                items.append(output.get_result())
+
+
+        for i in range(3, expected_count + 3):
+            self.assertIn(i, items)
+
+    def test_exception_catcher(self):
+        def even_throw_exception(value):
+            if value % 2 == 0:
+                raise Exception('Failed because {} is an even number'.format(value))
+            else:
+                return value
+
+        expected_count = 6
+        class TestException(MultithreadedGenerator):
+            def consumer(self):
+                for i in iterator(expected_count):
+                    self.submit_job(even_throw_exception, i)
+
+        try:
+            with TestException(catch_exception=True) as test_exception:
+                for output in test_exception:
+                    if not output:
+                        self.assertIn('Failed because ', str(output.get_exception()))
+                        self.assertIn(' is an even number', str(output.get_exception()))
+
+                success_count = test_exception.get_successful_job_count()
+                failed_count = test_exception.get_failed_job_count()
+
+            self.assertEqual(success_count, 3)
+            self.assertEqual(failed_count, 3)
+
+        except Exception as e:
+            # doesn't actually properly catch exception and cause the test case to fail since it is a threaded error
+            self.fail(e)
+
+    def test_log_errors(self):
+        log_name = 'test'
+        logger = get_logger(log_name)
+        exception_str = 'This is an exception'
+        def throw_exception():
+            raise Exception(exception_str)
+
+        class TestException(MultithreadedGenerator):
+            def consumer(self):
+                self.submit_job(throw_exception)
+
+        try:
+            with self.assertLogs(logger, level=logging.INFO) as l:
+                with TestException(
+                    catch_exception=True,
+                    logger=logger,
+                    retry_count=2,
+                    log_warning=True,
+                    log_error=True
+                ) as test_exception:
+                    for output in test_exception:
+                        pass
+
+                    success_count = test_exception.get_successful_job_count()
+                    failed_count = test_exception.get_failed_job_count()
+
+                self.assertEqual(success_count, 0)
+                self.assertEqual(failed_count, 1)
+
+                expected_logs = [
+                    'WARNING:{}:Retrying job after catching exception: {}'.format(log_name, exception_str),
+                    'WARNING:{}:Retrying job after catching exception: {}'.format(log_name, exception_str),
+                    'ERROR:{}:Job failed with exception: {}'.format(log_name, exception_str)
+                ]
+
+                self.assertEqual(l.output, expected_logs)
+
+        except Exception as e:
+            # doesn't actually properly catch exception and cause the test case to fail since it is a threaded error
+            self.fail(e)

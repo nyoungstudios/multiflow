@@ -1,15 +1,10 @@
 
-from multiflow import MultithreadedGeneratorBase, MultithreadedGenerator, MultithreadedFlow
-import logging
-import sys
+from multiflow import MultithreadedGeneratorBase, MultithreadedGenerator, MultithreadedFlow, JobOutput
+from tests.setup_logger import get_logger
 import time
 
 
-logger = logging.getLogger('test')
-handler = logging.StreamHandler(stream=sys.stderr)
-handler.setFormatter(logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s"))
-logger.addHandler(handler)
-logger.setLevel(logging.INFO)
+logger = get_logger('test')
 
 
 def printer(v):

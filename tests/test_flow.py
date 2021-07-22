@@ -49,6 +49,7 @@ class TestFlow(unittest.TestCase):
     def test_zero_items(self):
         logger = get_logger('test')
 
+        expected_before_count = 0
         expected_count = 0
         with MultithreadedFlow(iterator, expected_count) as flow:
             before_count = flow.get_successful_job_count() + flow.get_failed_job_count()
@@ -64,7 +65,7 @@ class TestFlow(unittest.TestCase):
 
             count = flow.get_successful_job_count() + flow.get_failed_job_count()
 
-        self.assertEqual(before_count, expected_count)
+        self.assertEqual(before_count, expected_before_count)
         self.assertEqual(count, expected_count)
 
     def test_flow_two_functions(self):

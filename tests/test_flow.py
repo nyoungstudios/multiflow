@@ -1,10 +1,7 @@
-import hashlib
-import io
 import logging
-import math
-import os
 import re
 import threading
+import time
 import unittest
 
 from multiflow import MultithreadedGeneratorBase, MultithreadedGenerator, MultithreadedFlow, FlowException
@@ -142,12 +139,11 @@ class TestFlow(unittest.TestCase):
             self.fail(e)
 
     def test_periodic_logger(self):
-        size = int(math.pow(10, 9))  # 1 GB
-        def create_random_data():
-            random_data = io.BytesIO(os.urandom(size))
-            md5 = hashlib.md5(random_data.read()).hexdigest()
+        def sleep_mod(value):
+            sleep_time = value % 5
+            time.sleep(sleep_time)
 
-            return md5
+            return sleep_time
 
         log_name = 'test'
         logger = get_logger(log_name)
@@ -159,7 +155,7 @@ class TestFlow(unittest.TestCase):
         class TestLogger(MultithreadedGenerator):
             def consumer(self):
                 for i in iterator(expected_count):
-                    self.submit_job(create_random_data)
+                    self.submit_job(sleep_mod, i)
 
         with self.assertLogs(logger, level=logging.INFO) as l:
             with TestLogger(

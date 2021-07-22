@@ -270,7 +270,7 @@ class MultithreadedGeneratorBase:
                                            name)
                 else:
                     # logs default periodic log message
-                    log_msg = '{} job{} completed succcessfully. {} job{} failed.'.format(
+                    log_msg = '{} job{} completed successfully. {} job{} failed.'.format(
                         self.get_successful_job_count(job_id=jid), pluralize(self.get_successful_job_count(job_id=jid)),
                         self.get_failed_job_count(job_id=jid), pluralize(self.get_failed_job_count(job_id=jid)))
 

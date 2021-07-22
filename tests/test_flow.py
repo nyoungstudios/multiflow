@@ -1,4 +1,9 @@
+import hashlib
+import io
 import logging
+import math
+import os
+import re
 import threading
 import unittest
 
@@ -135,3 +140,46 @@ class TestFlow(unittest.TestCase):
         except Exception as e:
             # doesn't actually properly catch exception and cause the test case to fail since it is a threaded error
             self.fail(e)
+
+    def test_periodic_logger(self):
+        size = int(math.pow(10, 9))  # 1 GB
+        def create_random_data():
+            random_data = io.BytesIO(os.urandom(size))
+            md5 = hashlib.md5(random_data.read()).hexdigest()
+
+            return md5
+
+        log_name = 'test'
+        logger = get_logger(log_name)
+
+        log_regex = re.compile(r'^\d+ job[s]? completed successfully\. \d+ job[s]? failed\.$')
+
+        expected_count = 25
+
+        class TestLogger(MultithreadedGenerator):
+            def consumer(self):
+                for i in iterator(expected_count):
+                    self.submit_job(create_random_data)
+
+        with self.assertLogs(logger, level=logging.INFO) as l:
+            with TestLogger(
+                max_workers=100,
+                logger=logger,
+                log_interval=1,
+                log_periodically=True
+            ) as flow:
+                for output in flow:
+                    pass
+
+                count = flow.get_successful_job_count()
+
+            self.assertEqual(count, expected_count)
+
+            if not l.output:
+                self.fail('No periodic logs were recorded')
+
+            for log_statement in l.output:
+                log_parts = log_statement.split(':')
+                self.assertEqual(log_parts[0], 'INFO')
+                self.assertEqual(log_parts[1], log_name)
+                self.assertIsNotNone(log_regex.match(log_parts[2]), log_parts[2])

@@ -33,12 +33,30 @@ class TestFlow(unittest.TestCase):
             with MultithreadedFlow(iterator, 500) as flow:
                 for output in flow:
                     pass
+            self.fail('Did not throw an exception')
+        except Exception as e:
+            self.assertIsInstance(e, FlowException)
+
+    def test_no_consumer_base(self):
+        try:
+            with MultithreadedGeneratorBase() as flow:
+                for output in flow:
+                    pass
+            self.fail('Did not throw an exception')
         except Exception as e:
             self.assertIsInstance(e, FlowException)
 
     def test_zero_items(self):
+        logger = get_logger('test')
+
         expected_count = 0
         with MultithreadedFlow(iterator, expected_count) as flow:
+            before_count = flow.get_successful_job_count() + flow.get_failed_job_count()
+            flow.set_params(
+                logger=logger,
+                log_interval=1,
+                log_periodically=True
+            )
             flow.add_function('returns item', returns_item)
 
             for output in flow:
@@ -46,6 +64,7 @@ class TestFlow(unittest.TestCase):
 
             count = flow.get_successful_job_count() + flow.get_failed_job_count()
 
+        self.assertEqual(before_count, expected_count)
         self.assertEqual(count, expected_count)
 
     def test_flow_two_functions(self):
@@ -163,11 +182,11 @@ class TestFlow(unittest.TestCase):
                 logger=logger,
                 log_interval=1,
                 log_periodically=True
-            ) as flow:
-                for output in flow:
+            ) as test_logger:
+                for output in test_logger:
                     pass
 
-                count = flow.get_successful_job_count()
+                count = test_logger.get_successful_job_count()
 
             self.assertEqual(count, expected_count)
 

@@ -6,12 +6,17 @@ name: Python Test
 on:
   push:
     branches: [ main ]
+    paths:
+      - 'multiflow/**'
+      - 'tests/**'
   pull_request:
     branches: [ main ]
+    paths:
+      - 'multiflow/**'
+      - 'tests/**'
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
     timeout-minutes: 10
     strategy:

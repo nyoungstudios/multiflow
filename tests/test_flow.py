@@ -95,6 +95,7 @@ class TestFlow(unittest.TestCase):
                 return value
 
         expected_count = 6
+
         class TestException(MultithreadedGenerator):
             def consumer(self):
                 for i in iterator(expected_count):
@@ -121,6 +122,7 @@ class TestFlow(unittest.TestCase):
         log_name = 'test'
         logger = get_logger(log_name)
         exception_str = 'This is an exception'
+
         def throw_exception():
             raise Exception(exception_str)
 
@@ -168,26 +170,25 @@ class TestFlow(unittest.TestCase):
         log_name = 'test'
         logger = get_logger(log_name)
 
-        log_regex = re.compile(r'^\d+ job[s]? completed successfully\. \d+ job[s]? failed\.$')
+        log_regex = re.compile(r'^ \d+ job[s]? completed successfully\. \d+ job[s]? failed\.$')
 
         expected_count = 25
 
-        class TestLogger(MultithreadedGenerator):
-            def consumer(self):
-                for i in iterator(expected_count):
-                    self.submit_job(sleep_mod, i)
-
         with self.assertLogs(logger, level=logging.INFO) as l:
-            with TestLogger(
-                max_workers=100,
-                logger=logger,
-                log_interval=1,
-                log_periodically=True
-            ) as test_logger:
-                for output in test_logger:
+            with MultithreadedFlow(iterator, expected_count) as flow:
+                flow.set_params(
+                    max_workers=100,
+                    logger=logger,
+                    log_interval=1,
+                    log_periodically=True
+                )
+                flow.add_function('fn1', sleep_mod)
+                flow.add_function('fn2', sleep_mod)
+
+                for output in flow:
                     pass
 
-                count = test_logger.get_successful_job_count()
+                count = flow.get_successful_job_count()
 
             self.assertEqual(count, expected_count)
 
@@ -198,4 +199,8 @@ class TestFlow(unittest.TestCase):
                 log_parts = log_statement.split(':')
                 self.assertEqual(log_parts[0], 'INFO')
                 self.assertEqual(log_parts[1], log_name)
-                self.assertIsNotNone(log_regex.match(log_parts[2]), log_parts[2])
+                if log_parts[2].startswith('fn1'):
+                    self.assertEqual(log_parts[2], 'fn1 (0)')
+                else:
+                    self.assertEqual(log_parts[2], 'fn2 (1)')
+                self.assertIsNotNone(log_regex.match(log_parts[3]), log_parts[2])

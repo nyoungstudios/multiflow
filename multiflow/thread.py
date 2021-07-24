@@ -455,7 +455,8 @@ class MultithreadedFlow:
     def _initial_consumer(self):
         initial_name, initial_fn = self._fn_calls[0]
         initial_count = 0
-        for i, x in enumerate(self._fn(*self._args, **self._kwargs) if self._fn else self._iterable):
+        iterable = self._fn(*self._args, **self._kwargs) if self._fn else self._iterable
+        for i, x in enumerate(iterable):
             if i == 0:
                 self._initial_has_at_least_one.set()
             initial_count += 1

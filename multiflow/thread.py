@@ -399,9 +399,9 @@ class MultithreadedFlow:
         generator. This class also enables the ability to reuse the same thread pool of doing a series of tasks instead
         of creating another thread pool to consume the output of the first thread pool.
 
-        @param it: A callable function that returns an iterator or an iterable item like a list
-        @param args: args for the callable function, otherwise not used
-        @param kwargs: kwargs for the callable function, otherwise not used
+        :param it: A callable function that returns an iterator or an iterable item like a list
+        :param args: args for the callable function, otherwise not used
+        :param kwargs: kwargs for the callable function, otherwise not used
         """
 
         # stores the input iterable item/function iterator to consume and its arguments

@@ -8,7 +8,7 @@ import logging
 from queue import Queue
 from threading import Thread, Event
 import time
-from typing import Any, Callable, Generator
+from typing import Any, Callable, Generator, Iterable, Union
 
 from multiflow.utils import calc_args, pluralize
 
@@ -46,7 +46,7 @@ class StoppableThread(Thread):
 class JobOutput:
     def __init__(self, success: bool, attempts: int, job_id: int = 0, result: Any = None, exception: Exception = None):
         """
-        Data class to hold the output from the MultithreadedGenerator
+        Data class to hold the output from the MultithreadedGenerator/Multiflow
 
         :param success: If True, the job was successful; otherwise, it failed
         :param attempts: The number of attempts it ran the job
@@ -99,22 +99,22 @@ class JobOutput:
 
 class MultithreadedGeneratorBase:
     def __init__(
-            self,
-            max_workers: int = None,
-            catch_exception: bool = False,
-            retry_count: int = 0,
-            sleep_seed: int = 1,
-            logger: logging.Logger = None,
-            log_interval: int = 30,
-            log_periodically: bool = False,
-            log_warning: bool = False,
-            log_error: bool = False,
-            log_summary: bool = False,
-            log_function: Callable = None
+        self,
+        max_workers: int = None,
+        catch_exception: bool = False,
+        retry_count: int = 0,
+        sleep_seed: int = 1,
+        logger: logging.Logger = None,
+        log_interval: int = 30,
+        log_periodically: bool = False,
+        log_warning: bool = False,
+        log_error: bool = False,
+        log_summary: bool = False,
+        log_function: Callable = None
     ):
         """
-        This class enables the ability to consume a generator function from one thread pool and put it into another
-        thread pool while returning a generator function
+        This class enables the ability to consume a generator function and do some work in a thread pool before
+        returning an generator function to iterate over
 
         :param max_workers: The maximum number of workers to use in the thread pool
         :param catch_exception: If True, will catch any exception in each individual job so it won't cause the thread
@@ -393,9 +393,27 @@ class MultithreadedGenerator(ABC, MultithreadedGeneratorBase):
 
 
 class MultithreadedFlow:
-    def __init__(self, fn: Callable, *args, **kwargs):
-        # stores the input function iterator to consume and its arguments
-        self._fn = fn
+    def __init__(self, it: Union[Callable, Iterable], *args, **kwargs):
+        """
+        Like the MultithreadedGenerator, this accepts a generator, does some work in a thread pool, and returns a
+        generator. This class also enables the ability to reuse the same thread pool of doing a series of tasks instead
+        of creating another thread pool to consume the output of the first thread pool.
+
+        @param it: A callable function that returns an iterator or an iterable item like a list
+        @param args: args for the callable function, otherwise not used
+        @param kwargs: kwargs for the callable function, otherwise not used
+        """
+
+        # stores the input iterable item/function iterator to consume and its arguments
+        self._fn = None
+        self._iterable = None
+        if isinstance(it, Callable):
+            self._fn = it
+        elif isinstance(it, Iterable):
+            self._iterable = it
+        else:
+            raise FlowException('First item must be an iterable item or function returning an iterator')
+
         self._args = args
         self._kwargs = kwargs
 
@@ -437,7 +455,7 @@ class MultithreadedFlow:
     def _initial_consumer(self):
         initial_name, initial_fn = self._fn_calls[0]
         initial_count = 0
-        for i, x in enumerate(self._fn(*self._args, **self._kwargs)):
+        for i, x in enumerate(self._fn(*self._args, **self._kwargs) if self._fn else self._iterable):
             if i == 0:
                 self._initial_has_at_least_one.set()
             initial_count += 1

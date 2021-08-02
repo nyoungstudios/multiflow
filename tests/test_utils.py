@@ -49,3 +49,15 @@ class TestUtils(unittest.TestCase):
         expected_result = 0
 
         self.assertEqual(result, expected_result)
+
+    def test_c_type_string_format(self):
+        str_fmt = 'this is awesome: %(success_count)s'
+        items = {'success_count': 2}
+
+        self.assertTrue(use_c_string(str_fmt, items))
+
+    def test_string_format_map(self):
+        str_fmt = 'this is awesome: {success_count}'
+        items = {'success_count': 2}
+
+        self.assertFalse(use_c_string(str_fmt, items))

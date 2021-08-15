@@ -67,6 +67,7 @@ class TestFlow(unittest.TestCase):
                 log_periodically=True
             )
             flow.add_function('returns item', returns_item)
+            flow.add_function('returns item 2', returns_item)
 
             for output in flow:
                 pass

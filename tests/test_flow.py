@@ -17,6 +17,14 @@ def returns_item(item):
     return item
 
 
+def add_one(value):
+    return value + 1
+
+
+def add_two(value):
+    return value + 2
+
+
 class TestFlow(unittest.TestCase):
     def setUp(self):
         self.thread_count = threading.active_count()
@@ -68,16 +76,23 @@ class TestFlow(unittest.TestCase):
         self.assertEqual(before_count, expected_before_count)
         self.assertEqual(count, expected_count)
 
-    def test_flow_two_functions(self):
-        def add_one(value):
-            return value + 1
-
-        def add_two(value):
-            return value + 2
-
+    def test_flow_two_functions_callable(self):
         expected_count = 5
         items = []
         with MultithreadedFlow(iterator, expected_count) as flow:
+            flow.add_function('add one', add_one)
+            flow.add_function('add two', add_two)
+
+            for output in flow:
+                items.append(output.get_result())
+
+        for i in range(3, expected_count + 3):
+            self.assertIn(i, items)
+
+    def test_flow_two_functions_iterable(self):
+        expected_count = 5
+        items = []
+        with MultithreadedFlow([0, 1, 2, 3, 4]) as flow:
             flow.add_function('add one', add_one)
             flow.add_function('add two', add_two)
 

@@ -93,6 +93,9 @@ class JobOutput:
     def __bool__(self):
         return self.is_successful()
 
+    def __repr__(self):
+        return repr(self.get_result())
+
     def __str__(self):
         return str(self.get_result())
 

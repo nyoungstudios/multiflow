@@ -12,7 +12,12 @@ class TestJobOutput(unittest.TestCase):
         output = JobOutput(False, 1)
         self.assertFalse(output)
 
-    def test_result(self):
+    def test_result_repr(self):
+        result = 'This is the result'
+        output = JobOutput(True, 1, result=result)
+        self.assertEqual(repr(output), repr(result))
+
+    def test_result_str(self):
         result = 'This is the result'
         output = JobOutput(True, 1, result=result)
         self.assertEqual(str(output), result)

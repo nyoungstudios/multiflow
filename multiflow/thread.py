@@ -159,7 +159,8 @@ class MultithreadedGeneratorBase:
         self._has_at_least_one = False
 
         # the thread pool executor
-        self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=max_workers)
+        self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=max_workers,
+                                                               thread_name_prefix='MultiflowThreadPool')
 
         # for catching exception and automatically retrying the job
         self._catch_exception = catch_exception
@@ -198,10 +199,10 @@ class MultithreadedGeneratorBase:
         if not self._consumer_fn:
             raise FlowException('Must set the consumer function')
 
-        producer_thread = Thread(target=self._producer, daemon=True)
-        consumer_thread = Thread(target=self._wrap_consumer, daemon=True)
+        producer_thread = Thread(target=self._producer, daemon=True, name='MultiflowProducer')
+        consumer_thread = Thread(target=self._wrap_consumer, daemon=True, name='MultiflowConsumer')
         if self._log_periodically and (self._logger or self._log_function):
-            self._logger_thread = StoppableThread(target=self._log_status, daemon=True)
+            self._logger_thread = StoppableThread(target=self._log_status, daemon=True, name='MultiflowLogger')
             self._logger_thread.start()
 
         producer_thread.start()
@@ -487,14 +488,18 @@ class MultithreadedFlow:
 
     def _consumer(self):
         self._last_jid = len(self._fn_calls) - 1
-        initial_consumer_thread = Thread(target=self._initial_consumer, daemon=True)
-        process_flow_thread = Thread(target=self._process_flow, daemon=True)
+        process_flow_thread = None
+        initial_consumer_thread = Thread(target=self._initial_consumer, daemon=True, name='MultiflowInitialConsumer')
+        if self._last_jid > 0:
+            process_flow_thread = Thread(target=self._process_flow, daemon=True, name='MultiflowProcessFlow')
 
         initial_consumer_thread.start()
-        process_flow_thread.start()
+        if self._last_jid > 0:
+            process_flow_thread.start()
 
         initial_consumer_thread.join()
-        process_flow_thread.join()
+        if self._last_jid > 0:
+            process_flow_thread.join()
 
     def get_output(self) -> Generator[JobOutput, None, None]:
         if not self._fn_calls:

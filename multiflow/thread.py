@@ -223,7 +223,7 @@ class MultithreadedGeneratorBase:
                 return
 
         # takes items from output queue and produces generator output
-        while not self._done_producing.is_set() or not self._output_queue.empty():
+        while True:
             output = self._output_queue.get()
 
             if not isinstance(output, DummyItem):
@@ -233,11 +233,11 @@ class MultithreadedGeneratorBase:
                 else:
                     self._num_of_failed_jobs[output.get_job_id()] += 1
 
+                self._output_queue.task_done()
                 yield output
             else:
+                self._output_queue.task_done()
                 break
-
-            self._output_queue.task_done()
 
         producer_thread.join()
         consumer_thread.join()
@@ -293,12 +293,16 @@ class MultithreadedGeneratorBase:
                 self._done_producing.set()
                 return
 
-        while not self._done_consuming.is_set() or not self._input_queue.empty():
+        while True:
             future = self._input_queue.get()
 
-            result = future.result()
-            self._output_queue.put_nowait(result)
-            self._input_queue.task_done()
+            if not isinstance(future, DummyItem):
+                result = future.result()
+                self._output_queue.put_nowait(result)
+                self._input_queue.task_done()
+            else:
+                self._input_queue.task_done()
+                break
 
         self._done_producing.set()
         # so the output queue doesn't block forever if the input queue is cleared before the _done_producing Event is
@@ -328,6 +332,7 @@ class MultithreadedGeneratorBase:
         to the thread pool
         """
         self._consumer_fn(*self._consumer_args, **self._consumer_kwargs)
+        self._input_queue.put_nowait(DummyItem())
         self._done_consuming.set()
 
     def submit_job(self, fn, *args, **kwargs):

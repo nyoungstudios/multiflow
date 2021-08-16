@@ -147,16 +147,11 @@ class MultithreadedGeneratorBase:
 
         self._input_queue = Queue()  # for storing the job to execute
         self._output_queue = Queue()  # for storing the job result
-        self._done_consuming = Event()  # if it is done consuming from input function
-        self._done_producing = Event()  # if it is done producing the results
 
         # consumer function and it's arguments
         self._consumer_fn = None
         self._consumer_args = None
         self._consumer_kwargs = None
-
-        # if there has at least been one job added to the input queue
-        self._has_at_least_one = False
 
         # the thread pool executor
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=max_workers,
@@ -207,20 +202,6 @@ class MultithreadedGeneratorBase:
 
         producer_thread.start()
         consumer_thread.start()
-
-        # waits for the thread pool to have at least one job to do before continuing
-        while not self._has_at_least_one:
-            # exits if nothing has been added to the job queue
-            if self._done_consuming.is_set():
-                self._done_producing.set()
-                producer_thread.join()
-                consumer_thread.join()
-
-                if self._logger_thread:
-                    self._logger_thread.stop()
-                    self._logger_thread.join()
-
-                return
 
         # takes items from output queue and produces generator output
         while True:
@@ -286,13 +267,6 @@ class MultithreadedGeneratorBase:
         """
         Executes the job from the input queue and puts the result in the output queue
         """
-        while not self._has_at_least_one:
-            if self._done_consuming.is_set():
-                # properly exists if nothing is added to consume so that the thread does get stuck as alive when
-                # trying to get the future
-                self._done_producing.set()
-                return
-
         while True:
             future = self._input_queue.get()
 
@@ -304,9 +278,7 @@ class MultithreadedGeneratorBase:
                 self._input_queue.task_done()
                 break
 
-        self._done_producing.set()
-        # so the output queue doesn't block forever if the input queue is cleared before the _done_producing Event is
-        # read from get_output()
+        # adds dummy item to end of the output queue so we know there are no more results
         self._output_queue.put_nowait(DummyItem())
 
     def set_consumer(self, fn, *args, **kwargs):
@@ -332,8 +304,8 @@ class MultithreadedGeneratorBase:
         to the thread pool
         """
         self._consumer_fn(*self._consumer_args, **self._consumer_kwargs)
+        # adds dummy item to end of the input queue so we know there are no more jobs to do
         self._input_queue.put_nowait(DummyItem())
-        self._done_consuming.set()
 
     def submit_job(self, fn, *args, **kwargs):
         """
@@ -345,7 +317,6 @@ class MultithreadedGeneratorBase:
         """
         Submits job to thread pool
         """
-        self._has_at_least_one = True
         self._jid_to_name[jid] = name
         self._input_queue.put_nowait(self._executor.submit(self._call_fn_and_catch_exception, jid, fn, *args, **kwargs))
 

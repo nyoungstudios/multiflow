@@ -123,6 +123,16 @@ class TestFlow(unittest.TestCase):
         except Exception as e:
             self.assertIsInstance(e, FlowException)
 
+    def test_add_wrong_type_function_with_name(self):
+        try:
+            with MultithreadedFlow(iterator, 1) as flow:
+                flow.add_function('name', 1)
+                for output in flow:
+                    pass
+            self.fail('Did not throw an exception')
+        except Exception as e:
+            self.assertIsInstance(e, FlowException)
+
     def test_flow_two_functions_callable(self):
         expected_count = 5
         items = []

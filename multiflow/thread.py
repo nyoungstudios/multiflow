@@ -417,8 +417,43 @@ class MultithreadedFlow:
         self._multithreaded_generator = MultithreadedGeneratorBase(**kwargs)
         self._multithreaded_generator.set_consumer(self._consumer)
 
-    def add_function(self, name, fn):
-        self._fn_calls.append((name, fn))
+    def add_function(self, *args, **kwargs):
+        """
+        Adds a function call to the process flow.
+
+        :param args: The first argument must be a callable function or the name to be present in the periodic logs
+            (string type). If the first argument is a string, then the second argument must be a callable function.
+            All other arguments after that, are passed as positional arguments to the callable function after the return
+            value of the previous function in the process flow (which will always be the first argument).
+        :param kwargs: kwargs to be passed to the callable function in the process flow.
+        """
+        num_of_args = len(args)
+        if num_of_args == 0:
+            raise FlowException('Must provide a function to add to the process flow.')
+        else:
+            if isinstance(args[0], str):
+                name = args[0]
+                if num_of_args == 1:
+                    raise FlowException('If the first argument is of type string, must provide a second argument that '
+                                        'is a callable function.')
+
+                fn = args[1]
+                if not isinstance(fn, Callable):
+                    raise FlowException('If first argument is of type string, the second argument must be a callable '
+                                        'function.')
+
+                offset = 2
+            elif isinstance(args[0], Callable):
+                fn = args[0]
+                name = fn.__name__
+                offset = 1
+            else:
+                raise FlowException('The first argument must be a string or callable function, not of type {}.'
+                                    .format(type(args[0])))
+
+        fn_args = args[offset:]
+
+        self._fn_calls.append((name, fn, fn_args, kwargs))
 
     def get_successful_job_count(self) -> int:
         if self._multithreaded_generator:
@@ -433,14 +468,14 @@ class MultithreadedFlow:
             return 0
 
     def _initial_consumer(self):
-        initial_name, initial_fn = self._fn_calls[0]
+        initial_name, initial_fn, flow_args, flow_kwargs = self._fn_calls[0]
         initial_count = 0
         iterable = self._fn(*self._args, **self._kwargs) if self._fn else self._iterable
         for i, x in enumerate(iterable):
             if i == 0:
                 self._initial_has_at_least_one.set()
             initial_count += 1
-            self._multithreaded_generator.submit_job_with_jid(0, initial_name, initial_fn, x)
+            self._multithreaded_generator.submit_job_with_jid(0, initial_name, initial_fn, x, *flow_args, **flow_kwargs)
 
         self._initial_count = initial_count
 
@@ -456,8 +491,8 @@ class MultithreadedFlow:
         while not self._process_queue.empty() or self._initial_count is None or self._initial_count != last_jid_count:
             jid, output = self._process_queue.get()
             result = output.get_result()
-            name, fn = self._fn_calls[jid]
-            self._multithreaded_generator.submit_job_with_jid(jid, name, fn, result)
+            name, fn, flow_args, flow_kwargs = self._fn_calls[jid]
+            self._multithreaded_generator.submit_job_with_jid(jid, name, fn, result, *flow_args, **flow_kwargs)
             self._process_queue.task_done()
             if jid == self._last_jid:
                 last_jid_count += 1

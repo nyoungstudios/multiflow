@@ -25,6 +25,10 @@ def add_two(value):
     return value + 2
 
 
+def add_n(value, n):
+    return value + n
+
+
 class TestFlow(unittest.TestCase):
     def setUp(self):
         self.thread_count = threading.active_count()
@@ -57,7 +61,7 @@ class TestFlow(unittest.TestCase):
     def test_not_iterable(self):
         try:
             with MultithreadedFlow(None) as flow:
-                flow.add_function('fn1', returns_item)
+                flow.add_function(returns_item)
 
                 for output in flow:
                     pass
@@ -78,8 +82,8 @@ class TestFlow(unittest.TestCase):
                 log_interval=1,
                 log_periodically=True
             )
-            flow.add_function('returns item', returns_item)
-            flow.add_function('returns item 2', returns_item)
+            flow.add_function(returns_item)
+            flow.add_function(returns_item)
 
             for output in flow:
                 pass
@@ -88,6 +92,36 @@ class TestFlow(unittest.TestCase):
 
         self.assertEqual(before_count, expected_before_count)
         self.assertEqual(count, expected_count)
+
+    def test_no_function_arguments(self):
+        try:
+            with MultithreadedFlow(iterator, 1) as flow:
+                flow.add_function()
+                for output in flow:
+                    pass
+            self.fail('Did not throw an exception')
+        except Exception as e:
+            self.assertIsInstance(e, FlowException)
+
+    def test_no_function_arguments_with_name(self):
+        try:
+            with MultithreadedFlow(iterator, 1) as flow:
+                flow.add_function('name')
+                for output in flow:
+                    pass
+            self.fail('Did not throw an exception')
+        except Exception as e:
+            self.assertIsInstance(e, FlowException)
+
+    def test_add_wrong_type_function(self):
+        try:
+            with MultithreadedFlow(iterator, 1) as flow:
+                flow.add_function(1)
+                for output in flow:
+                    pass
+            self.fail('Did not throw an exception')
+        except Exception as e:
+            self.assertIsInstance(e, FlowException)
 
     def test_flow_two_functions_callable(self):
         expected_count = 5
@@ -113,6 +147,19 @@ class TestFlow(unittest.TestCase):
                 items.append(output.get_result())
 
         for i in range(3, expected_count + 3):
+            self.assertIn(i, items)
+
+    def test_flow_with_args_and_kwargs(self):
+        expected_count = 5
+        items = []
+        with MultithreadedFlow([0, 1, 2, 3, 4]) as flow:
+            flow.add_function(add_n, 4)
+            flow.add_function(add_n, n=6)
+
+            for output in flow:
+                items.append(output.get_result())
+
+        for i in range(10, expected_count + 10):
             self.assertIn(i, items)
 
     def test_exception_catcher(self):

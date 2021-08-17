@@ -376,7 +376,7 @@ class MultithreadedFlow:
     def __init__(self, it: Union[Callable, Iterable], *args, **kwargs):
         """
         Like the MultithreadedGenerator, this accepts a generator, does some work in a thread pool, and returns a
-        generator. This class also enables the ability to reuse the same thread pool of doing a series of tasks instead
+        generator. This class also enables the ability to reuse the same thread pool by doing a series of tasks instead
         of creating another thread pool to consume the output of the first thread pool.
 
         :param it: A callable function that returns an iterator or an iterable item like a list

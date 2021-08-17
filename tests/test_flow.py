@@ -54,6 +54,18 @@ class TestFlow(unittest.TestCase):
         except Exception as e:
             self.assertIsInstance(e, FlowException)
 
+    def test_not_iterable(self):
+        try:
+            with MultithreadedFlow(None) as flow:
+                flow.add_function('fn1', returns_item)
+
+                for output in flow:
+                    pass
+
+                self.fail('Did not throw an exception')
+        except Exception as e:
+            self.assertIsInstance(e, FlowException)
+
     def test_zero_items(self):
         logger = get_logger('test')
 

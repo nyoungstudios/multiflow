@@ -116,7 +116,24 @@ class TestFlow(unittest.TestCase):
             for output in flow:
                 if output:
                     self.assertGreaterEqual(output.get_result(), 1)
-                    self.assertLessEqual(output.get_result(), expected_count + 1)
+                    self.assertLess(output.get_result(), expected_count + 1)
+
+            success_count = flow.get_successful_job_count()
+
+        self.assertEqual(expected_count, success_count)
+
+    def test_flow_a_lot_of_items(self):
+        expected_count = 5000
+        expected_min = 4
+        expected_max = expected_count + expected_min
+        with MultithreadedFlow(iterator, expected_count) as flow:
+            for _ in range(expected_min):
+                flow.add_function(add_one)
+
+            for output in flow:
+                if output:
+                    self.assertGreaterEqual(output.get_result(), expected_min)
+                    self.assertLess(output.get_result(), expected_max)
 
             success_count = flow.get_successful_job_count()
 

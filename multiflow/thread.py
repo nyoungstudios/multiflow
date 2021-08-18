@@ -59,7 +59,7 @@ class FlowFunction:
         if prev is None:
             return self._args
         else:
-            return prev, *self._args
+            return (prev, *self._args)
 
     def handle(self, exception: Exception, prev=None):
         if self._handler:

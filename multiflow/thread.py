@@ -49,30 +49,29 @@ class FlowFunction:
         """
         Adds exception handler to job
 
-        :param fn: The function to handle the exception. This function should accept one positional argument which would
-            be the exception. And
+        :param fn: The function to handle the exception. This function should accept the exception as the first
+            positional argument, the previous task in the process flow's result, and all the args and kwargs passed to
+            the job function.
         """
-        pos_args = calc_args(fn)
-        if pos_args != 1:
-            raise FlowException('Function may only have one positional argument that accepts an Exception type.')
-
         self._handler = fn
 
-    def handle(self, exception: Exception):
+    def _calc_args(self, prev):
+        if prev is None:
+            return self._args
+        else:
+            return prev, *self._args
+
+    def handle(self, exception: Exception, prev=None):
         if self._handler:
             try:
-                return self._handler(exception)
+                return self._handler(exception, *self._calc_args(prev), **self._kwargs)
             except Exception as e:
                 return e
         else:
             return exception
 
     def run(self, prev=None):
-        if prev is None:
-            pos_args = self._args
-        else:
-            pos_args = (prev, *self._args)
-        return self._fn(*pos_args, **self._kwargs)
+        return self._fn(*self._calc_args(prev), **self._kwargs)
 
 
 class StoppableThread(Thread):
@@ -376,7 +375,7 @@ class MultithreadedGeneratorBase:
             try:
                 return JobOutput(success=True, attempts=i, job_id=jid, result=flow_fn.run(prev=prev))
             except Exception as e:
-                exception = flow_fn.handle(e)
+                exception = flow_fn.handle(e, prev=prev)
                 if not isinstance(exception, Exception):
                     return JobOutput(success=True, attempts=i, job_id=jid, result=exception)
 

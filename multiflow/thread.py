@@ -460,6 +460,10 @@ class MultithreadedFlow:
 
         self._process_queue = Queue()
 
+        # counts
+        self._success_count = 0
+        self._failed_count = 0
+
     def set_params(self, **kwargs):
         """
         See MultithreadedGeneratorBase for the kwargs that you can set
@@ -510,16 +514,10 @@ class MultithreadedFlow:
         return flow_fn
 
     def get_successful_job_count(self) -> int:
-        if self._multithreaded_generator:
-            return self._multithreaded_generator.get_successful_job_count(job_id=self._last_jid)
-        else:
-            return 0
+        return self._success_count
 
     def get_failed_job_count(self) -> int:
-        if self._multithreaded_generator:
-            return self._multithreaded_generator.get_failed_job_count(job_id=self._last_jid)
-        else:
-            return 0
+        return self._failed_count
 
     def _initial_consumer(self):
         flow_fn = self._fn_calls[0]
@@ -580,6 +578,10 @@ class MultithreadedFlow:
                 new_jid = current_jid + 1
                 self._process_queue.put_nowait((new_jid, output))
             else:
+                if output:
+                    self._success_count += 1
+                else:
+                    self._failed_count += 1
                 yield output
                 if output_count == final_output_count:
                     self._process_queue.put_nowait((0, DummyItem()))

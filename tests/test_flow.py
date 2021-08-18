@@ -29,6 +29,17 @@ def add_n(value, n):
     return value + n
 
 
+class CustomException(Exception):
+    pass
+
+
+def even_throw_exception(value):
+    if value % 2 == 0:
+        raise CustomException('Failed because it is an even number|{}'.format(value))
+    else:
+        return value
+
+
 class TestFlow(unittest.TestCase):
     def setUp(self):
         self.thread_count = threading.active_count()
@@ -173,13 +184,8 @@ class TestFlow(unittest.TestCase):
             self.assertIn(i, items)
 
     def test_exception_catcher(self):
-        def even_throw_exception(value):
-            if value % 2 == 0:
-                raise Exception('Failed because {} is an even number'.format(value))
-            else:
-                return value
-
         expected_count = 6
+        error_indices = {0, 2, 4}
 
         class TestException(MultithreadedGenerator):
             def consumer(self):
@@ -190,8 +196,10 @@ class TestFlow(unittest.TestCase):
             with TestException(catch_exception=True) as test_exception:
                 for output in test_exception:
                     if not output:
-                        self.assertIn('Failed because ', str(output.get_exception()))
-                        self.assertIn(' is an even number', str(output.get_exception()))
+                        error_parts = str(output.get_exception()).split('|')
+
+                        self.assertEqual('Failed because it is an even number', error_parts[0])
+                        self.assertIn(int(error_parts[1]), error_indices)
 
                 success_count = test_exception.get_successful_job_count()
                 failed_count = test_exception.get_failed_job_count()
@@ -202,6 +210,55 @@ class TestFlow(unittest.TestCase):
         except Exception as e:
             # doesn't actually properly catch exception and cause the test case to fail since it is a threaded error
             self.fail(e)
+
+    def test_flow_handle_and_throw_exception(self):
+        def exception_handler(exception, value):
+            raise exception
+
+        expected_success = 5
+        expected_failed = 5
+        expected_count = expected_success + expected_failed
+
+        with MultithreadedFlow(iterator, expected_count) as flow:
+            flow.set_params(catch_exception=True)
+            flow.add_function(even_throw_exception).error_handler(exception_handler)
+
+            for output in flow:
+                if not output:
+                    self.assertTrue(isinstance(output.get_exception(), CustomException))
+
+            success_count = flow.get_successful_job_count()
+            failed_count = flow.get_failed_job_count()
+
+        self.assertEqual(success_count, expected_success)
+        self.assertEqual(failed_count, expected_failed)
+
+    def test_flow_handle_and_catch_exception(self):
+        def exception_handler(exception, value):
+            if value == 2:
+                raise exception
+            elif value == 8:
+                return exception
+            else:
+                return value
+
+        expected_success = 8
+        expected_failed = 2
+        expected_count = expected_success + expected_failed
+
+        with MultithreadedFlow(iterator, expected_count) as flow:
+            flow.set_params(catch_exception=True)
+            flow.add_function(even_throw_exception).error_handler(exception_handler)
+
+            for output in flow:
+                if not output:
+                    self.assertTrue(isinstance(output.get_exception(), CustomException))
+
+            success_count = flow.get_successful_job_count()
+            failed_count = flow.get_failed_job_count()
+
+        self.assertEqual(success_count, expected_success)
+        self.assertEqual(failed_count, expected_failed)
 
     def test_log_errors(self):
         log_name = 'test'

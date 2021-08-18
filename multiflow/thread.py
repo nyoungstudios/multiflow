@@ -457,6 +457,7 @@ class MultithreadedFlow:
 
         self._initial_has_at_least_one = Event()  # to make sure there is at least one item consumed
         self._done_initially_consuming = Event()  # keeps track if the first consumer is done
+        self._initial_count = None
 
         self._process_queue = Queue()
 
@@ -521,11 +522,15 @@ class MultithreadedFlow:
 
     def _initial_consumer(self):
         flow_fn = self._fn_calls[0]
+        i = None
         iterable = self._fn(*self._args, **self._kwargs) if self._fn else self._iterable
         for i, x in enumerate(iterable):
             if i == 0:
                 self._initial_has_at_least_one.set()
             self._multithreaded_generator.submit_job_with_jid(0, flow_fn, prev=x)
+
+        if i is not None:
+            self._initial_count = i + 1
 
         self._done_initially_consuming.set()
 
@@ -534,16 +539,17 @@ class MultithreadedFlow:
             if self._done_initially_consuming.is_set():
                 return
 
-        while True:
+        last_jid_count = 0
+
+        while self._initial_count is None or self._initial_count != last_jid_count or not self._process_queue.empty():
             jid, output = self._process_queue.get()
             if not isinstance(output, DummyItem):
                 result = output.get_result()
                 flow_fn = self._fn_calls[jid]
                 self._multithreaded_generator.submit_job_with_jid(jid, flow_fn, prev=result)
-                self._process_queue.task_done()
-            else:
-                self._process_queue.task_done()
-                break
+            self._process_queue.task_done()
+            if jid == self._last_jid:
+                last_jid_count += 1
 
     def _consumer(self):
         self._last_jid = len(self._fn_calls) - 1
@@ -568,25 +574,26 @@ class MultithreadedFlow:
         if not self._multithreaded_generator:
             self.set_params()
 
-        output_count = 0
-
-        final_output_count = self._last_jid + 2
-
         for output in self._multithreaded_generator.get_output():
             current_jid = output.get_job_id()
-            if current_jid < self._last_jid and output.get_result() is not None:
-                new_jid = current_jid + 1
-                self._process_queue.put_nowait((new_jid, output))
+            if current_jid < self._last_jid:
+                if output.get_result() is not None:
+                    new_jid = current_jid + 1
+                    self._process_queue.put_nowait((new_jid, output))
+                else:
+                    if output:
+                        self._success_count += 1
+                    else:
+                        self._failed_count += 1
+
+                    self._process_queue.put_nowait((self._last_jid, DummyItem()))
+                    yield output
             else:
                 if output:
                     self._success_count += 1
                 else:
                     self._failed_count += 1
                 yield output
-                if output_count == final_output_count:
-                    self._process_queue.put_nowait((0, DummyItem()))
-                else:
-                    output_count += 1
 
     def __enter__(self):
         return self

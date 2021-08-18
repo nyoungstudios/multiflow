@@ -225,7 +225,7 @@ class TestFlow(unittest.TestCase):
 
             for output in flow:
                 if not output:
-                    self.assertTrue(isinstance(output.get_exception(), CustomException))
+                    self.assertIsInstance(output.get_exception(), CustomException)
 
             success_count = flow.get_successful_job_count()
             failed_count = flow.get_failed_job_count()
@@ -252,13 +252,44 @@ class TestFlow(unittest.TestCase):
 
             for output in flow:
                 if not output:
-                    self.assertTrue(isinstance(output.get_exception(), CustomException))
+                    self.assertIsInstance(output.get_exception(), CustomException)
 
             success_count = flow.get_successful_job_count()
             failed_count = flow.get_failed_job_count()
 
         self.assertEqual(success_count, expected_success)
         self.assertEqual(failed_count, expected_failed)
+
+    def test_flow_upstream_error(self):
+        def exception_handler(exception, value):
+            if value == 2:
+                return exception
+            else:
+                return value
+
+        valid_results = {4, 5, 7, 8, 9, 10, 11}
+
+        with MultithreadedFlow(iterator, 8) as flow:
+            flow.set_params(catch_exception=True)
+            flow.add_function(returns_item)
+            flow.add_function(even_throw_exception).error_handler(exception_handler)
+            flow.add_function(add_n, n=4)
+
+            for output in flow:
+                if output:
+                    self.assertIn(output.get_result(), valid_results)
+                else:
+                    self.assertIsInstance(output.get_exception(), CustomException)
+
+                    error_parts = str(output.get_exception()).split('|')
+                    self.assertEqual('Failed because it is an even number', error_parts[0])
+                    self.assertEqual(int(error_parts[1]), 2)
+
+            success_count = flow.get_successful_job_count()
+            failed_count = flow.get_failed_job_count()
+
+        self.assertEqual(success_count, 7)
+        self.assertEqual(failed_count, 1)
 
     def test_log_errors(self):
         log_name = 'test'

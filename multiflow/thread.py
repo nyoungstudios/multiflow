@@ -33,15 +33,15 @@ class FlowFunction:
         """
         Holds information about the function to execute in the thread pool
 
-        @param name: the name to be present in the periodic logs
-        @param fn: function to call
-        @param args: args for the function
-        @param kwargs: kwargs for the function
+        :param name: the name to be present in the periodic logs
+        :param fn: function to call
+        :param args: args for the function
+        :param kwargs: kwargs for the function
         """
         self.name = name
-        self.fn = fn
-        self.args = args
-        self.kwargs = kwargs
+        self._fn = fn
+        self._args = args
+        self._kwargs = kwargs
 
         self._handler = None
 
@@ -49,7 +49,7 @@ class FlowFunction:
         """
         Adds exception handler to job
 
-        @param fn: The function to handle the exception. This function should accept one positional argument which would
+        :param fn: The function to handle the exception. This function should accept one positional argument which would
             be the exception. And
         """
         pos_args = calc_args(fn)
@@ -60,9 +60,19 @@ class FlowFunction:
 
     def handle(self, exception: Exception):
         if self._handler:
-            return self._handler(exception)
+            try:
+                return self._handler(exception)
+            except Exception as e:
+                return e
         else:
             return exception
+
+    def run(self, prev=None):
+        if prev is None:
+            pos_args = self._args
+        else:
+            pos_args = (prev, *self._args)
+        return self._fn(*pos_args, **self._kwargs)
 
 
 class StoppableThread(Thread):
@@ -348,25 +358,28 @@ class MultithreadedGeneratorBase:
         """
         Submits job to thread pool
         """
-        self.submit_job_with_jid(0, '', fn, *args, **kwargs)
+        self.submit_job_with_jid(0, FlowFunction('', fn, *args, **kwargs))
 
-    def submit_job_with_jid(self, jid, name, fn, *args, **kwargs):
+    def submit_job_with_jid(self, jid, flow_fn, prev=None):
         """
         Submits job to thread pool
         """
-        self._jid_to_name[jid] = name
-        self._input_queue.put_nowait(self._executor.submit(self._call_fn_and_catch_exception, jid, fn, *args, **kwargs))
+        self._jid_to_name[jid] = flow_fn.name
+        self._input_queue.put_nowait(self._executor.submit(self._call_fn_and_catch_exception, jid, flow_fn, prev=prev))
 
-    def _call_fn_and_catch_exception(self, jid, fn, *args, **kwargs):
+    def _call_fn_and_catch_exception(self, jid, flow_fn: FlowFunction, prev=None):
         """
         A wrapper function to call function while catching and returning the exception
         """
         exception = None
         for i in range(1, self._total_count + 1):
             try:
-                return JobOutput(success=True, attempts=i, job_id=jid, result=fn(*args, **kwargs))
+                return JobOutput(success=True, attempts=i, job_id=jid, result=flow_fn.run(prev=prev))
             except Exception as e:
-                exception = e
+                exception = flow_fn.handle(e)
+                if not isinstance(exception, Exception):
+                    return JobOutput(success=True, attempts=i, job_id=jid, result=exception)
+
                 if self._log_warning and self._logger and i < self._total_count:
                     log_msg = 'Retrying job after catching exception: {}'.format(exception)
                     self._logger.warning(self._prepend_name_for_log(log_msg, jid))
@@ -516,8 +529,7 @@ class MultithreadedFlow:
             if i == 0:
                 self._initial_has_at_least_one.set()
             initial_count += 1
-            self._multithreaded_generator.submit_job_with_jid(0, flow_fn.name, flow_fn.fn, x, *flow_fn.args,
-                                                              **flow_fn.kwargs)
+            self._multithreaded_generator.submit_job_with_jid(0, flow_fn, prev=x)
 
         self._initial_count = initial_count
 
@@ -534,8 +546,7 @@ class MultithreadedFlow:
             jid, output = self._process_queue.get()
             result = output.get_result()
             flow_fn = self._fn_calls[jid]
-            self._multithreaded_generator.submit_job_with_jid(jid, flow_fn.name, flow_fn.fn, result, *flow_fn.args,
-                                                              **flow_fn.kwargs)
+            self._multithreaded_generator.submit_job_with_jid(jid, flow_fn, prev=result)
             self._process_queue.task_done()
             if jid == self._last_jid:
                 last_jid_count += 1

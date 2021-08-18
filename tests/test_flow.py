@@ -43,12 +43,12 @@ def even_throw_exception(value):
 class TestFlow(unittest.TestCase):
     def setUp(self):
         self.thread_count = threading.active_count()
-        self.assertEqual(self.thread_count, 1)
+        self.assertEqual(1, self.thread_count)
 
     def tearDown(self):
         final_thread_count = threading.active_count()
         self.assertEqual(self.thread_count, final_thread_count)
-        self.assertEqual(self.thread_count, 1)
+        self.assertEqual(1, self.thread_count)
         self.thread_count = None
 
     def test_no_consumer(self):
@@ -101,8 +101,8 @@ class TestFlow(unittest.TestCase):
 
             count = flow.get_successful_job_count() + flow.get_failed_job_count()
 
-        self.assertEqual(before_count, expected_before_count)
-        self.assertEqual(count, expected_count)
+        self.assertEqual(expected_before_count, before_count)
+        self.assertEqual(expected_count, count)
 
     def test_base_a_lot_of_items(self):
         expected_count = 5000
@@ -222,8 +222,8 @@ class TestFlow(unittest.TestCase):
                 success_count = test_exception.get_successful_job_count()
                 failed_count = test_exception.get_failed_job_count()
 
-            self.assertEqual(success_count, 3)
-            self.assertEqual(failed_count, 3)
+            self.assertEqual(3, success_count)
+            self.assertEqual(3, failed_count)
 
         except Exception as e:
             # doesn't actually properly catch exception and cause the test case to fail since it is a threaded error
@@ -248,8 +248,8 @@ class TestFlow(unittest.TestCase):
             success_count = flow.get_successful_job_count()
             failed_count = flow.get_failed_job_count()
 
-        self.assertEqual(success_count, expected_success)
-        self.assertEqual(failed_count, expected_failed)
+        self.assertEqual(expected_success, success_count)
+        self.assertEqual(expected_failed, failed_count)
 
     def test_flow_handle_and_catch_exception(self):
         def exception_handler(exception, value):
@@ -275,8 +275,8 @@ class TestFlow(unittest.TestCase):
             success_count = flow.get_successful_job_count()
             failed_count = flow.get_failed_job_count()
 
-        self.assertEqual(success_count, expected_success)
-        self.assertEqual(failed_count, expected_failed)
+        self.assertEqual(expected_success, success_count)
+        self.assertEqual(expected_failed, failed_count)
 
     def test_flow_upstream_error(self):
         def exception_handler(exception, value):
@@ -301,13 +301,13 @@ class TestFlow(unittest.TestCase):
 
                     error_parts = str(output.get_exception()).split('|')
                     self.assertEqual('Failed because it is an even number', error_parts[0])
-                    self.assertEqual(int(error_parts[1]), 2)
+                    self.assertEqual(2, int(error_parts[1]))
 
             success_count = flow.get_successful_job_count()
             failed_count = flow.get_failed_job_count()
 
-        self.assertEqual(success_count, 7)
-        self.assertEqual(failed_count, 1)
+        self.assertEqual(7, success_count)
+        self.assertEqual(1, failed_count)
 
     def test_log_errors(self):
         log_name = 'test'
@@ -331,13 +331,13 @@ class TestFlow(unittest.TestCase):
                     log_error=True
                 ) as test_exception:
                     for output in test_exception:
-                        self.assertEqual(output.get_num_of_attempts(), 3)
+                        self.assertEqual(3, output.get_num_of_attempts())
 
                     success_count = test_exception.get_successful_job_count()
                     failed_count = test_exception.get_failed_job_count()
 
-                self.assertEqual(success_count, 0)
-                self.assertEqual(failed_count, 1)
+                self.assertEqual(0, success_count)
+                self.assertEqual(1, failed_count)
 
                 expected_logs = [
                     'WARNING:{}:Retrying job after catching exception: {}'.format(log_name, exception_str),
@@ -345,7 +345,7 @@ class TestFlow(unittest.TestCase):
                     'ERROR:{}:Job failed with exception: {}'.format(log_name, exception_str)
                 ]
 
-                self.assertEqual(l.output, expected_logs)
+                self.assertEqual(expected_logs, l.output)
 
         except Exception as e:
             # doesn't actually properly catch exception and cause the test case to fail since it is a threaded error
@@ -381,17 +381,17 @@ class TestFlow(unittest.TestCase):
 
                 count = flow.get_successful_job_count()
 
-            self.assertEqual(count, expected_count)
+            self.assertEqual(expected_count, count)
 
             if not l.output:
                 self.fail('No periodic logs were recorded')
 
             for log_statement in l.output:
                 log_parts = log_statement.split(':')
-                self.assertEqual(log_parts[0], 'INFO')
-                self.assertEqual(log_parts[1], log_name)
+                self.assertEqual('INFO', log_parts[0])
+                self.assertEqual(log_name, log_parts[1])
                 if log_parts[2].startswith('fn1'):
-                    self.assertEqual(log_parts[2], 'fn1 (0)')
+                    self.assertEqual('fn1 (0)', log_parts[2])
                 else:
-                    self.assertEqual(log_parts[2], 'fn2 (1)')
+                    self.assertEqual('fn2 (1)', log_parts[2])
                 self.assertIsNotNone(log_regex.match(log_parts[3]), log_parts[2])

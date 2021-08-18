@@ -104,6 +104,24 @@ class TestFlow(unittest.TestCase):
         self.assertEqual(before_count, expected_before_count)
         self.assertEqual(count, expected_count)
 
+    def test_base_a_lot_of_items(self):
+        expected_count = 5000
+        with MultithreadedGeneratorBase() as flow:
+            def consumer():
+                for i in iterator(expected_count):
+                    flow.submit_job(add_n, i, 1)
+
+            flow.set_consumer(consumer)
+
+            for output in flow:
+                if output:
+                    self.assertGreaterEqual(output.get_result(), 1)
+                    self.assertLessEqual(output.get_result(), expected_count + 1)
+
+            success_count = flow.get_successful_job_count()
+
+        self.assertEqual(expected_count, success_count)
+
     def test_no_function_arguments(self):
         try:
             with MultithreadedFlow(iterator, 1) as flow:

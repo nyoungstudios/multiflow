@@ -452,14 +452,8 @@ class MultithreadedFlow:
         self._fn_calls = []
         self._last_jid = 0
 
-        # an instance of the MultithreadedGeneratorBase
-        self._multithreaded_generator = None
-
-        self._initial_has_at_least_one = Event()  # to make sure there is at least one item consumed
-        self._done_initially_consuming = Event()  # keeps track if the first consumer is done
-        self._initial_count = None
-
-        self._process_queue = Queue()
+        # options for MultithreadedGeneratorBase
+        self._options = {}
 
         # counts
         self._success_count = 0
@@ -469,8 +463,7 @@ class MultithreadedFlow:
         """
         See MultithreadedGeneratorBase for the kwargs that you can set
         """
-        self._multithreaded_generator = MultithreadedGeneratorBase(**kwargs)
-        self._multithreaded_generator.set_consumer(self._consumer)
+        self._options = kwargs
 
     def add_function(self, *args, **kwargs):
         """
@@ -520,75 +513,31 @@ class MultithreadedFlow:
     def get_failed_job_count(self) -> int:
         return self._failed_count
 
-    def _initial_consumer(self):
-        flow_fn = self._fn_calls[0]
-        i = None
-        iterable = self._fn(*self._args, **self._kwargs) if self._fn else self._iterable
-        for i, x in enumerate(iterable):
-            if i == 0:
-                self._initial_has_at_least_one.set()
-            self._multithreaded_generator.submit_job_with_jid(0, flow_fn, prev=x)
-
-        if i is not None:
-            self._initial_count = i + 1
-
-        self._done_initially_consuming.set()
-
-    def _process_flow(self):
-        while not self._initial_has_at_least_one.is_set():
-            if self._done_initially_consuming.is_set():
-                return
-
-        last_jid_count = 0
-
-        while self._initial_count is None or self._initial_count != last_jid_count or not self._process_queue.empty():
-            jid, output = self._process_queue.get()
-            if not isinstance(output, DummyItem):
-                result = output.get_result()
-                flow_fn = self._fn_calls[jid]
-                self._multithreaded_generator.submit_job_with_jid(jid, flow_fn, prev=result)
-            self._process_queue.task_done()
-            if jid == self._last_jid:
-                last_jid_count += 1
-
-    def _consumer(self):
-        self._last_jid = len(self._fn_calls) - 1
-        process_flow_thread = None
-        initial_consumer_thread = Thread(target=self._initial_consumer, daemon=True, name='MultiflowInitialConsumer')
-        if self._last_jid > 0:
-            process_flow_thread = Thread(target=self._process_flow, daemon=True, name='MultiflowProcessFlow')
-
-        initial_consumer_thread.start()
-        if self._last_jid > 0:
-            process_flow_thread.start()
-
-        initial_consumer_thread.join()
-        if self._last_jid > 0:
-            process_flow_thread.join()
-
     def get_output(self) -> Generator[JobOutput, None, None]:
         if not self._fn_calls:
             raise FlowException('Must add at least one consuming function')
 
-        # initialize multithreaded generator if there were no parameters set
-        if not self._multithreaded_generator:
-            self.set_params()
+        process_flow = []
 
-        for output in self._multithreaded_generator.get_output():
-            current_jid = output.get_job_id()
-            if current_jid < self._last_jid:
-                if output.get_result() is not None:
-                    new_jid = current_jid + 1
-                    self._process_queue.put_nowait((new_jid, output))
-                else:
-                    if output:
-                        self._success_count += 1
-                    else:
-                        self._failed_count += 1
+        iterable = self._fn(*self._args, **self._kwargs) if self._fn else self._iterable
 
-                    self._process_queue.put_nowait((self._last_jid, DummyItem()))
-                    yield output
+        def consumer(index):
+            if index == 0:
+                for item in iterable:
+                    process_flow[index].submit_job_with_jid(index, self._fn_calls[index], prev=item)
             else:
+                with process_flow[index - 1] as prev_flow:
+                    for item in prev_flow.get_output():
+                        if item.get_result() is not None:
+                            process_flow[index].submit_job_with_jid(index, self._fn_calls[index], prev=item.get_result())
+
+        for i in range(len(self._fn_calls)):
+            multithreaded_generator = MultithreadedGeneratorBase(**self._options)
+            process_flow.append(multithreaded_generator)
+            multithreaded_generator.set_consumer(consumer, i)
+
+        with process_flow[-1] as final_flow:
+            for output in final_flow.get_output():
                 if output:
                     self._success_count += 1
                 else:
@@ -599,8 +548,7 @@ class MultithreadedFlow:
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        if self._multithreaded_generator:
-            self._multithreaded_generator.__exit__(exc_type=exc_type, exc_val=exc_val, exc_tb=exc_tb)
+        pass
 
     def __iter__(self):
         yield from self.get_output()

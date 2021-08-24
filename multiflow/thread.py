@@ -524,12 +524,12 @@ class MultithreadedFlow:
         def consumer(index):
             if index == 0:
                 for item in iterable:
-                    process_flow[index].submit_job_with_jid(index, self._fn_calls[index], prev=item)
+                    process_flow[index].submit_job_with_jid(0, self._fn_calls[index], prev=item)
             else:
                 with process_flow[index - 1] as prev_flow:
                     for item in prev_flow.get_output():
                         if item.get_result() is not None:
-                            process_flow[index].submit_job_with_jid(index, self._fn_calls[index], prev=item.get_result())
+                            process_flow[index].submit_job_with_jid(0, self._fn_calls[index], prev=item.get_result())
 
         for i in range(len(self._fn_calls)):
             multithreaded_generator = MultithreadedGeneratorBase(**self._options)
@@ -543,6 +543,9 @@ class MultithreadedFlow:
                 else:
                     self._failed_count += 1
                 yield output
+
+        for flow in process_flow[:-1]:
+            self._failed_count += flow.get_failed_job_count()
 
     def __enter__(self):
         return self

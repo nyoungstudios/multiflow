@@ -21,7 +21,7 @@ setup(
     maintainer_email='',
     url='https://github.com/nyoungstudios/multiflow',
     license='',
-    packages=find_packages(),
+    packages=find_packages(exclude=('tests',)),
     classifiers=(
         'Intended Audience :: Developers',
         'Operating System :: OS Independent',

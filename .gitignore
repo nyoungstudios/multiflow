@@ -6,6 +6,10 @@ __pycache__/
 # pycharm
 .idea/
 
+# vscode
+.vscode/*
+!.vscode/settings.json
+
 # macos
 .DS_Store
 

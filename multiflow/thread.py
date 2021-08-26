@@ -6,9 +6,12 @@ from collections import defaultdict
 import concurrent.futures
 import logging
 from queue import Queue
+import sys
 from threading import Thread, Event
 import time
+import traceback
 from typing import Any, Callable, Generator, Iterable, Union
+
 
 from multiflow.utils import calc_args, pluralize
 
@@ -64,11 +67,11 @@ class FlowFunction:
     def handle(self, exception: Exception, prev=None):
         if self._handler:
             try:
-                return self._handler(exception, *self._calc_args(prev), **self._kwargs)
+                return self._handler(exception, *self._calc_args(prev), **self._kwargs), None
             except Exception as e:
-                return e
+                return e, sys.exc_info()
         else:
-            return exception
+            return exception, sys.exc_info()
 
     def run(self, prev=None):
         return self._fn(*self._calc_args(prev), **self._kwargs)
@@ -150,9 +153,9 @@ class MultithreadedGeneratorBase:
     def __init__(
         self,
         max_workers: int = None,
-        catch_exception: bool = False,
         retry_count: int = 0,
         sleep_seed: int = 1,
+        quiet_traceback: bool = False,
         logger: logging.Logger = None,
         log_interval: int = 30,
         log_periodically: bool = False,
@@ -166,16 +169,15 @@ class MultithreadedGeneratorBase:
         returning an generator function to iterate over
 
         :param max_workers: The maximum number of workers to use in the thread pool
-        :param catch_exception: If True, will catch any exception in each individual job so it won't cause the thread
-            pool to stop working
         :param retry_count: The number of additional tries to retry the job if it fails
         :param sleep_seed: If a job failed, it will retry after sleeping the job attempt number multiplied by this
             number. Any number less than or equal to zero will result in not sleeping between retries
+        :param quiet_traceback: If True, will not print or log the traceback message on an exception
         :param logger: A logger to use for periodic logging and error messages
         :param log_interval: The time in seconds to log the periodic success and failure statuses
         :param log_periodically: If True, will log periodic success and failure status message
         :param log_warning: If True, will log warning messages
-        :param log_error: If true, will log error messages
+        :param log_error: If True, will log error messages
         :param log_summary: If True, will log the total job success and failure count after all the jobs have been
             complete
         :param log_function: If provided, will call this function instead of the default periodic logger. Function must
@@ -203,8 +205,7 @@ class MultithreadedGeneratorBase:
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=max_workers,
                                                                thread_name_prefix='MultiflowThreadPool')
 
-        # for catching exception and automatically retrying the job
-        self._catch_exception = catch_exception
+        # for automatically retrying the job
         self._sleep_seed = max(sleep_seed, 0)
         self._total_count = retry_count + 1
 
@@ -214,6 +215,9 @@ class MultithreadedGeneratorBase:
         # counts
         self._num_of_successful_jobs = defaultdict(int)
         self._num_of_failed_jobs = defaultdict(int)
+
+        # error traceback
+        self._quiet_traceback = quiet_traceback
 
         # logging
         self._logger_thread = None
@@ -371,12 +375,13 @@ class MultithreadedGeneratorBase:
         A wrapper function to call function while catching and returning the exception
         """
         exception = None
+        exec_info = None
         for i in range(1, self._total_count + 1):
             try:
                 return JobOutput(success=True, attempts=i, job_id=jid, result=flow_fn.run(prev=prev))
             except Exception as e:
-                exception = flow_fn.handle(e, prev=prev)
-                if not isinstance(exception, Exception):
+                exception, exec_info = flow_fn.handle(e, prev=prev)
+                if not exec_info:
                     return JobOutput(success=True, attempts=i, job_id=jid, result=exception)
 
                 # if we are going to retry this job
@@ -387,11 +392,17 @@ class MultithreadedGeneratorBase:
 
                     time.sleep(i * self._sleep_seed)
 
-        if not self._catch_exception:
-            raise exception
-        elif self._log_error and self._logger:
+        if self._log_error and self._logger:
             log_msg = 'Job failed with exception: {}'.format(exception)
+            if not self._quiet_traceback:
+                # gets traceback from exception
+                tb = traceback.TracebackException.from_exception(exception)
+                # formats traceback and removes last newline
+                tb_msg = ''.join(tb.format())[:-1]
+                log_msg += '\n{}'.format(tb_msg)
             self._logger.error(self._prepend_name_for_log(log_msg, jid))
+        elif not self._logger and not self._quiet_traceback:
+            traceback.print_exception(exception, *exec_info[-2:])
 
         return JobOutput(success=False, attempts=self._total_count, job_id=jid, exception=exception)
 

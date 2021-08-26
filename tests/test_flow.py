@@ -228,7 +228,7 @@ class TestFlow(unittest.TestCase):
                     self.submit_job(even_throw_exception, i)
 
         try:
-            with TestException(catch_exception=True) as test_exception:
+            with TestException(quiet_traceback=True) as test_exception:
                 for output in test_exception:
                     if not output:
                         error_parts = str(output.get_exception()).split('|')
@@ -255,7 +255,7 @@ class TestFlow(unittest.TestCase):
         expected_count = expected_success + expected_failed
 
         with MultithreadedFlow(iterator, expected_count) as flow:
-            flow.set_params(catch_exception=True)
+            flow.set_params(quiet_traceback=True)
             flow.add_function(even_throw_exception).error_handler(exception_handler)
 
             for output in flow:
@@ -270,10 +270,8 @@ class TestFlow(unittest.TestCase):
 
     def test_flow_handle_and_catch_exception(self):
         def exception_handler(exception, value):
-            if value == 2:
+            if value == 2 or value == 4:
                 raise exception
-            elif value == 8:
-                return exception
             else:
                 return value
 
@@ -282,7 +280,7 @@ class TestFlow(unittest.TestCase):
         expected_count = expected_success + expected_failed
 
         with MultithreadedFlow(iterator, expected_count) as flow:
-            flow.set_params(catch_exception=True)
+            flow.set_params(quiet_traceback=True)
             flow.add_function(even_throw_exception).error_handler(exception_handler)
 
             for output in flow:
@@ -298,14 +296,14 @@ class TestFlow(unittest.TestCase):
     def test_flow_upstream_error(self):
         def exception_handler(exception, value):
             if value == 2:
-                return exception
+                raise exception
             else:
                 return value
 
         valid_results = {4, 5, 7, 8, 9, 10, 11}
 
         with MultithreadedFlow(iterator, 8) as flow:
-            flow.set_params(catch_exception=True)
+            flow.set_params(quiet_traceback=True)
             flow.add_function(returns_item)
             flow.add_function(even_throw_exception).error_handler(exception_handler)
             flow.add_function(add_n, n=4)
@@ -341,9 +339,9 @@ class TestFlow(unittest.TestCase):
         try:
             with self.assertLogs(logger, level=logging.INFO) as l:
                 with TestException(
-                    catch_exception=True,
                     logger=logger,
                     retry_count=2,
+                    quiet_traceback=True,
                     log_warning=True,
                     log_error=True
                 ) as test_exception:

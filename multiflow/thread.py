@@ -399,7 +399,7 @@ class MultithreadedGeneratorBase:
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self._executor.__exit__(exc_type=exc_type, exc_val=exc_val, exc_tb=exc_tb)
+        self._executor.__exit__(exc_type, exc_val, exc_tb)
 
     def __iter__(self):
         yield from self.get_output()

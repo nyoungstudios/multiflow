@@ -326,6 +326,31 @@ class TestFlow(unittest.TestCase):
         self.assertEqual(7, success_count)
         self.assertEqual(1, failed_count)
 
+    def test_flow_upstream_branch(self):
+        def exit_on_even(value):
+            if value % 2 != 0:
+                return value
+
+        options = {3, 5, 7, 9}
+
+        with MultithreadedFlow(iterator, 8) as flow:
+            flow.add_function(add_one)
+            flow.add_function(exit_on_even)
+            flow.add_function(add_two)
+
+            for output in flow:
+                if output.get_result() is not None:
+                    self.assertIn(output.get_result(), options)
+                    self.assertEqual(output.get_job_id(), 2)
+                else:
+                    self.assertEqual(output.get_job_id(), 1)
+
+            success_count = flow.get_successful_job_count()
+            failed_count = flow.get_failed_job_count()
+
+        self.assertEqual(8, success_count)
+        self.assertEqual(0, failed_count)
+
     def test_log_errors(self):
         log_name = 'test'
         logger = get_logger(log_name)

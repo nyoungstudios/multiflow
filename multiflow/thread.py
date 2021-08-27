@@ -528,8 +528,13 @@ class MultithreadedFlow:
         if not self._fn_calls:
             raise FlowException('Must add at least one consuming function')
 
+        # stores the MultithreadedGeneratorBase class instances for each step in the process flow
         process_flow = []
 
+        # stores the additional job successes that exited early by index
+        additional_successes = defaultdict(list)
+
+        # the iterable item to consume
         iterable = self._fn(*self._args, **self._kwargs) if self._fn else self._iterable
 
         def consumer(index):
@@ -541,12 +546,16 @@ class MultithreadedFlow:
                     for item in prev_flow.get_output():
                         if item.get_result() is not None:
                             process_flow[index].submit_job_with_jid(index, self._fn_calls[index], prev=item.get_result())
+                        elif item:
+                            additional_successes[index].append(item)
 
+        # builds the multithreaded process flow
         for i in range(len(self._fn_calls)):
             multithreaded_generator = MultithreadedGeneratorBase(**self._options)
             process_flow.append(multithreaded_generator)
             multithreaded_generator.set_consumer(consumer, i)
 
+        # yields the output from the final process flow
         with process_flow[-1] as final_flow:
             for output in final_flow.get_output():
                 if output:
@@ -555,6 +564,13 @@ class MultithreadedFlow:
                     self._failed_count += 1
                 yield output
 
+        # yields output for upstream successes
+        for outputs in reversed(additional_successes.values()):
+            for output in outputs:
+                self._success_count += 1
+                yield output
+
+        # updates failed counts for upstream errors
         for i, flow in enumerate(process_flow[:-1]):
             self._failed_count += flow.get_failed_job_count(job_id=i)
 

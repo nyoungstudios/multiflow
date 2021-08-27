@@ -162,7 +162,8 @@ class MultithreadedGeneratorBase:
         log_warning: bool = False,
         log_error: bool = False,
         log_summary: bool = False,
-        log_function: Callable = None
+        log_function: Callable = None,
+        thread_prefix: str = None
     ):
         """
         This class enables the ability to consume a generator function and do some work in a thread pool before
@@ -183,6 +184,7 @@ class MultithreadedGeneratorBase:
         :param log_function: If provided, will call this function instead of the default periodic logger. Function must
             have 2 or 3 arguments. The first argument will be passed the number of successful jobs so far, the second
             will be passed the number of failed jobs. And the third if present, will be passed the job name
+        :param thread_prefix: The prefix of the thread names. Defaults to "Multiflow"
         """
         if logger is not None:
             assert isinstance(logger, logging.Logger)
@@ -201,9 +203,12 @@ class MultithreadedGeneratorBase:
         self._consumer_args = None
         self._consumer_kwargs = None
 
+        self._thread_prefix = thread_prefix if thread_prefix is not None else 'Multiflow'
+
         # the thread pool executor
-        self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=max_workers,
-                                                               thread_name_prefix='MultiflowThreadPool')
+        self._executor = concurrent.futures.ThreadPoolExecutor(
+            max_workers=max_workers, thread_name_prefix='{}ThreadPool'.format(self._thread_prefix)
+        )
 
         # for automatically retrying the job
         self._sleep_seed = max(sleep_seed, 0)
@@ -244,10 +249,11 @@ class MultithreadedGeneratorBase:
         if not self._consumer_fn:
             raise FlowException('Must set the consumer function')
 
-        producer_thread = Thread(target=self._producer, daemon=True, name='MultiflowProducer')
-        consumer_thread = Thread(target=self._wrap_consumer, daemon=True, name='MultiflowConsumer')
+        producer_thread = Thread(target=self._producer, daemon=True, name='{}Producer'.format(self._thread_prefix))
+        consumer_thread = Thread(target=self._wrap_consumer, daemon=True, name='{}Consumer'.format(self._thread_prefix))
         if self._log_periodically and (self._logger or self._log_function):
-            self._logger_thread = StoppableThread(target=self._log_status, daemon=True, name='MultiflowLogger')
+            self._logger_thread = StoppableThread(target=self._log_status, daemon=True,
+                                                  name='{}Logger'.format(self._thread_prefix))
             self._logger_thread.start()
 
         producer_thread.start()
@@ -465,6 +471,7 @@ class MultithreadedFlow:
 
         # options for MultithreadedGeneratorBase
         self._options = {}
+        self._has_thread_prefix = False
 
         # counts
         self._success_count = 0
@@ -475,6 +482,8 @@ class MultithreadedFlow:
         See MultithreadedGeneratorBase for the kwargs that you can set
         """
         self._options = kwargs
+        if 'thread_prefix' in self._options:
+            self._has_thread_prefix = True
 
     def add_function(self, *args, **kwargs):
         """
@@ -550,7 +559,10 @@ class MultithreadedFlow:
                             additional_successes[index].append(item)
 
         # builds the multithreaded process flow
-        for i in range(len(self._fn_calls)):
+        num_of_fns = len(self._fn_calls)
+        for i in range(num_of_fns):
+            if num_of_fns > 1 and not self._has_thread_prefix:
+                self._options['thread_prefix'] = 'Multiflow_{}_'.format(i)
             multithreaded_generator = MultithreadedGeneratorBase(**self._options)
             process_flow.append(multithreaded_generator)
             multithreaded_generator.set_consumer(consumer, i)

@@ -565,7 +565,7 @@ class MultithreadedFlow:
                 yield output
 
         # yields output for upstream successes
-        for outputs in reversed(additional_successes.values()):
+        for outputs in additional_successes.values():
             for output in outputs:
                 self._success_count += 1
                 yield output

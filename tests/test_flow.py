@@ -1,8 +1,11 @@
 import logging
+import io
 import re
+import sys
 import threading
 import time
 import unittest
+
 
 from multiflow import MultithreadedGeneratorBase, MultithreadedGenerator, MultithreadedFlow, FlowException
 from tests.setup_logger import get_logger
@@ -31,6 +34,10 @@ def add_n(value, n):
 
 class CustomException(Exception):
     pass
+
+
+def throw_exception(msg):
+    raise CustomException(msg)
 
 
 def even_throw_exception(value):
@@ -227,24 +234,19 @@ class TestFlow(unittest.TestCase):
                 for i in iterator(expected_count):
                     self.submit_job(even_throw_exception, i)
 
-        try:
-            with TestException(quiet_traceback=True) as test_exception:
-                for output in test_exception:
-                    if not output:
-                        error_parts = str(output.get_exception()).split('|')
+        with TestException(quiet_traceback=True) as test_exception:
+            for output in test_exception:
+                if not output:
+                    error_parts = str(output.get_exception()).split('|')
 
-                        self.assertEqual('Failed because it is an even number', error_parts[0])
-                        self.assertIn(int(error_parts[1]), error_indices)
+                    self.assertEqual('Failed because it is an even number', error_parts[0])
+                    self.assertIn(int(error_parts[1]), error_indices)
 
-                success_count = test_exception.get_successful_job_count()
-                failed_count = test_exception.get_failed_job_count()
+            success_count = test_exception.get_successful_job_count()
+            failed_count = test_exception.get_failed_job_count()
 
-            self.assertEqual(3, success_count)
-            self.assertEqual(3, failed_count)
-
-        except Exception as e:
-            # doesn't actually properly catch exception and cause the test case to fail since it is a threaded error
-            self.fail(e)
+        self.assertEqual(3, success_count)
+        self.assertEqual(3, failed_count)
 
     def test_flow_handle_and_throw_exception(self):
         def exception_handler(exception, value):
@@ -329,42 +331,34 @@ class TestFlow(unittest.TestCase):
         logger = get_logger(log_name)
         exception_str = 'This is an exception'
 
-        def throw_exception():
-            raise Exception(exception_str)
-
         class TestException(MultithreadedGenerator):
             def consumer(self):
-                self.submit_job(throw_exception)
+                self.submit_job(throw_exception, exception_str)
 
-        try:
-            with self.assertLogs(logger, level=logging.INFO) as l:
-                with TestException(
-                    logger=logger,
-                    retry_count=2,
-                    quiet_traceback=True,
-                    log_warning=True,
-                    log_error=True
-                ) as test_exception:
-                    for output in test_exception:
-                        self.assertEqual(3, output.get_num_of_attempts())
+        with self.assertLogs(logger, level=logging.INFO) as l:
+            with TestException(
+                logger=logger,
+                retry_count=2,
+                quiet_traceback=True,
+                log_warning=True,
+                log_error=True
+            ) as test_exception:
+                for output in test_exception:
+                    self.assertEqual(3, output.get_num_of_attempts())
 
-                    success_count = test_exception.get_successful_job_count()
-                    failed_count = test_exception.get_failed_job_count()
+                success_count = test_exception.get_successful_job_count()
+                failed_count = test_exception.get_failed_job_count()
 
-                self.assertEqual(0, success_count)
-                self.assertEqual(1, failed_count)
+            self.assertEqual(0, success_count)
+            self.assertEqual(1, failed_count)
 
-                expected_logs = [
-                    'WARNING:{}:Retrying job after catching exception: {}'.format(log_name, exception_str),
-                    'WARNING:{}:Retrying job after catching exception: {}'.format(log_name, exception_str),
-                    'ERROR:{}:Job failed with exception: {}'.format(log_name, exception_str)
-                ]
+            expected_logs = [
+                'WARNING:{}:Retrying job after catching exception: {}'.format(log_name, exception_str),
+                'WARNING:{}:Retrying job after catching exception: {}'.format(log_name, exception_str),
+                'ERROR:{}:Job failed with exception: {}'.format(log_name, exception_str)
+            ]
 
-                self.assertEqual(expected_logs, l.output)
-
-        except Exception as e:
-            # doesn't actually properly catch exception and cause the test case to fail since it is a threaded error
-            self.fail(e)
+            self.assertEqual(expected_logs, l.output)
 
     def test_periodic_logger(self):
         def sleep_mod(value):
@@ -410,3 +404,61 @@ class TestFlow(unittest.TestCase):
                 else:
                     self.assertEqual('fn2 (1)', log_parts[2])
                 self.assertIsNotNone(log_regex.match(log_parts[3]), log_parts[2])
+
+    def test_log_traceback(self):
+        log_name = 'test'
+        logger = get_logger(log_name)
+        exception_str = 'This is an exception'
+
+        class TestException(MultithreadedGenerator):
+            def consumer(self):
+                self.submit_job(throw_exception, exception_str)
+
+        with self.assertLogs(logger, level=logging.INFO) as l:
+            with TestException(
+                logger=logger,
+                log_error=True
+            ) as test_exception:
+                for output in test_exception:
+                    self.assertEqual(1, output.get_num_of_attempts())
+
+                success_count = test_exception.get_successful_job_count()
+                failed_count = test_exception.get_failed_job_count()
+
+            self.assertEqual(0, success_count)
+            self.assertEqual(1, failed_count)
+
+            expected_log_error = 'ERROR:{}:Job failed with exception: {}'.format(log_name, exception_str)
+            traceback_first_line = 'Traceback (most recent call last):'
+
+            lines = l.output[0].split('\n')
+
+            self.assertEqual(expected_log_error, lines[0])
+            self.assertEqual(traceback_first_line, lines[1])
+            self.assertIn(exception_str, lines[-1])
+
+    def test_print_traceback(self):
+        exception_str = 'testing 1, 2, 3'
+
+        old_stderr = sys.stderr
+        redirected_error = sys.stderr = io.StringIO()
+
+        with MultithreadedFlow([exception_str]) as flow:
+            flow.add_function(throw_exception)
+
+            for output in flow:
+                self.assertFalse(output)
+                self.assertIsInstance(output.get_exception(), CustomException)
+
+            err = redirected_error.getvalue()
+
+            lines = err.strip().split('\n')
+
+            traceback_first_line = 'Traceback (most recent call last):'
+
+            self.assertEqual(traceback_first_line, lines[0])
+            self.assertIn(exception_str, lines[-1])
+
+            sys.stderr = old_stderr
+
+

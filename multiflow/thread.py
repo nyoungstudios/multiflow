@@ -563,8 +563,6 @@ class MultithreadedFlow:
     def get_output(self) -> Generator[JobOutput, None, None]:
         if not self._fn_calls:
             raise FlowException('Must add at least one consuming function')
-        elif not self._fn and not self._iterable:
-            raise FlowException('Must set function or iterable item to consume')
 
         # stores the MultithreadedGeneratorBase class instances for each step in the process flow
         process_flow = []

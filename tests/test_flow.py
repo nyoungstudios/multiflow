@@ -489,6 +489,8 @@ class TestFlow(unittest.TestCase):
     def test_flow_thread_name_prefix(self):
         log_name = 'test'
         log_format = '%(name)s-%(levelname)s-%(threadName)s-%(message)s'
+        # sets logging format for just this test case
+        previous_logging_format = unittest.case._AssertLogsContext.LOGGING_FORMAT
         unittest.case._AssertLogsContext.LOGGING_FORMAT = log_format
         logger = get_logger(log_name, log_format=log_format)
         thread_prefix = 'qwerty'
@@ -518,3 +520,6 @@ class TestFlow(unittest.TestCase):
                 self.assertTrue(log_parts[2].startswith(thread_prefix))
                 self.assertNotIn('Multiflow', log_parts[2])
                 self.assertIn(error_msg, log_parts[3])
+
+        # restores logging format
+        unittest.case._AssertLogsContext.LOGGING_FORMAT = previous_logging_format

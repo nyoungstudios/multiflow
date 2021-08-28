@@ -465,49 +465,53 @@ class MultithreadedGenerator(ABC, MultithreadedGeneratorBase):
 
 
 class MultithreadedFlow:
-    def __init__(self, it: Union[Callable, Iterable], *args, **kwargs):
+    def __init__(self, **kwargs):
         """
         Like the MultithreadedGenerator, this accepts a generator, does some work in a thread pool, and returns a
-        generator. This class also enables the ability to reuse the same thread pool by doing a series of tasks instead
-        of creating another thread pool to consume the output of the first thread pool.
+        generator. This class also enables the ability chain multiple jobs after each other by passing the first job
+        from the first thread pool to the next thread pool for the next job.
 
-        :param it: A callable function that returns an iterator or an iterable item like a list
-        :param args: args for the callable function, otherwise not used
-        :param kwargs: kwargs for the callable function, otherwise not used
+        :param kwargs: see kwargs for the MultithreadedGeneratorBase
         """
+
+        # options for MultithreadedGeneratorBase
+        self._options = kwargs
+        self._has_thread_prefix = 'thread_prefix' in self._options
 
         # stores the input iterable item/function iterator to consume and its arguments
         self._fn = None
         self._iterable = None
-        if isinstance(it, Callable):
-            self._fn = it
-        elif isinstance(it, Iterable):
-            self._iterable = it
-        else:
-            raise FlowException('First item must be an iterable item or function returning an iterator')
-
-        self._args = args
-        self._kwargs = kwargs
+        self._args = None
+        self._kwargs = None
 
         # to keep track of the order of functions to call
         self._fn_calls = []
         self._last_jid = 0
 
-        # options for MultithreadedGeneratorBase
-        self._options = {}
-        self._has_thread_prefix = False
-
         # counts
         self._success_count = 0
         self._failed_count = 0
 
-    def set_params(self, **kwargs):
+    def consume(self, *args, **kwargs):
         """
-        See MultithreadedGeneratorBase for the kwargs that you can set
+        Sets the input function or iterable consumer
+
+        :param args: The first item is either the callable function or iterable item to consume. The rest of the items
+            are the args for the callable function. Not used if first iterable item.
+        :param kwargs: kwargs for the callable function, otherwise not used
         """
-        self._options = kwargs
-        if 'thread_prefix' in self._options:
-            self._has_thread_prefix = True
+        num_of_args = len(args)
+        if num_of_args == 0:
+            raise FlowException('Must provide a function or iterable item to consume.')
+        elif isinstance(args[0], Callable):
+            self._fn = args[0]
+        elif isinstance(args[0], Iterable):
+            self._iterable = args[0]
+        else:
+            raise Exception('First item must be an iterable item or function returning an iterator')
+
+        self._args = args[1:]
+        self._kwargs = kwargs
 
     def add_function(self, *args, **kwargs):
         """
@@ -522,26 +526,25 @@ class MultithreadedFlow:
         num_of_args = len(args)
         if num_of_args == 0:
             raise FlowException('Must provide a function to add to the process flow.')
+        elif isinstance(args[0], str):
+            name = args[0]
+            if num_of_args == 1:
+                raise FlowException('If the first argument is of type string, must provide a second argument that is a '
+                                    'callable function.')
+
+            fn = args[1]
+            if not isinstance(fn, Callable):
+                raise FlowException('If first argument is of type string, the second argument must be a callable '
+                                    'function.')
+
+            offset = 2
+        elif isinstance(args[0], Callable):
+            fn = args[0]
+            name = fn.__name__
+            offset = 1
         else:
-            if isinstance(args[0], str):
-                name = args[0]
-                if num_of_args == 1:
-                    raise FlowException('If the first argument is of type string, must provide a second argument that '
-                                        'is a callable function.')
-
-                fn = args[1]
-                if not isinstance(fn, Callable):
-                    raise FlowException('If first argument is of type string, the second argument must be a callable '
-                                        'function.')
-
-                offset = 2
-            elif isinstance(args[0], Callable):
-                fn = args[0]
-                name = fn.__name__
-                offset = 1
-            else:
-                raise FlowException('The first argument must be a string or callable function, not of type {}.'
-                                    .format(type(args[0])))
+            raise FlowException('The first argument must be a string or callable function, not of type {}.'
+                                .format(type(args[0])))
 
         fn_args = args[offset:]
 
@@ -560,6 +563,8 @@ class MultithreadedFlow:
     def get_output(self) -> Generator[JobOutput, None, None]:
         if not self._fn_calls:
             raise FlowException('Must add at least one consuming function')
+        elif not self._fn and not self._iterable:
+            raise FlowException('Must set function or iterable item to consume')
 
         # stores the MultithreadedGeneratorBase class instances for each step in the process flow
         process_flow = []

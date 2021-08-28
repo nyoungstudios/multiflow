@@ -58,9 +58,27 @@ class TestFlow(unittest.TestCase):
         self.assertEqual(1, self.thread_count)
         self.thread_count = None
 
-    def test_no_consumer(self):
+    def test_flow_no_consumer_fn(self):
         try:
-            with MultithreadedFlow(iterator, 500) as flow:
+            with MultithreadedFlow() as flow:
+                flow.consume(iterator, 500)
+                for output in flow:
+                    pass
+            self.fail('Did not throw an exception')
+        except Exception as e:
+            self.assertIsInstance(e, FlowException)
+
+    def test_flow_no_input_to_consume(self):
+        try:
+            with MultithreadedFlow() as flow:
+                flow.consume()
+            self.fail('Did not throw an exception')
+        except Exception as e:
+            self.assertIsInstance(e, FlowException)
+
+    def test_flow_no_input_or_consuming_fn(self):
+        try:
+            with MultithreadedFlow() as flow:
                 for output in flow:
                     pass
             self.fail('Did not throw an exception')
@@ -78,7 +96,8 @@ class TestFlow(unittest.TestCase):
 
     def test_not_iterable(self):
         try:
-            with MultithreadedFlow(None) as flow:
+            with MultithreadedFlow() as flow:
+                flow.consume(None)
                 flow.add_function(returns_item)
 
                 for output in flow:
@@ -93,7 +112,8 @@ class TestFlow(unittest.TestCase):
 
         expected_before_count = 0
         expected_count = 0
-        with MultithreadedFlow(iterator, expected_count) as flow:
+        with MultithreadedFlow() as flow:
+            flow.consume(iterator, expected_count)
             before_count = flow.get_successful_job_count() + flow.get_failed_job_count()
             flow.set_params(
                 logger=logger,
@@ -133,7 +153,8 @@ class TestFlow(unittest.TestCase):
         expected_count = 5000
         expected_min = 4
         expected_max = expected_count + expected_min
-        with MultithreadedFlow(iterator, expected_count) as flow:
+        with MultithreadedFlow() as flow:
+            flow.consume(iterator, expected_count)
             for _ in range(expected_min):
                 flow.add_function(add_one)
 
@@ -148,7 +169,8 @@ class TestFlow(unittest.TestCase):
 
     def test_no_function_arguments(self):
         try:
-            with MultithreadedFlow(iterator, 1) as flow:
+            with MultithreadedFlow() as flow:
+                flow.consume(iterator, 1)
                 flow.add_function()
                 for output in flow:
                     pass
@@ -158,7 +180,8 @@ class TestFlow(unittest.TestCase):
 
     def test_no_function_arguments_with_name(self):
         try:
-            with MultithreadedFlow(iterator, 1) as flow:
+            with MultithreadedFlow() as flow:
+                flow.consume(iterator, 1)
                 flow.add_function('name')
                 for output in flow:
                     pass
@@ -168,7 +191,8 @@ class TestFlow(unittest.TestCase):
 
     def test_add_wrong_type_function(self):
         try:
-            with MultithreadedFlow(iterator, 1) as flow:
+            with MultithreadedFlow() as flow:
+                flow.consume(iterator, 1)
                 flow.add_function(1)
                 for output in flow:
                     pass
@@ -178,7 +202,8 @@ class TestFlow(unittest.TestCase):
 
     def test_add_wrong_type_function_with_name(self):
         try:
-            with MultithreadedFlow(iterator, 1) as flow:
+            with MultithreadedFlow() as flow:
+                flow.consume(iterator, 1)
                 flow.add_function('name', 1)
                 for output in flow:
                     pass
@@ -189,7 +214,8 @@ class TestFlow(unittest.TestCase):
     def test_flow_two_functions_callable(self):
         expected_count = 5
         items = []
-        with MultithreadedFlow(iterator, expected_count) as flow:
+        with MultithreadedFlow() as flow:
+            flow.consume(iterator, expected_count)
             flow.add_function('add one', add_one)
             flow.add_function('add two', add_two)
 
@@ -202,7 +228,8 @@ class TestFlow(unittest.TestCase):
     def test_flow_two_functions_iterable(self):
         expected_count = 5
         items = []
-        with MultithreadedFlow([0, 1, 2, 3, 4]) as flow:
+        with MultithreadedFlow() as flow:
+            flow.consume([0, 1, 2, 3, 4])
             flow.add_function('add one', add_one)
             flow.add_function('add two', add_two)
 
@@ -215,7 +242,8 @@ class TestFlow(unittest.TestCase):
     def test_flow_with_args_and_kwargs(self):
         expected_count = 5
         items = []
-        with MultithreadedFlow([0, 1, 2, 3, 4]) as flow:
+        with MultithreadedFlow() as flow:
+            flow.consume([0, 1, 2, 3, 4])
             flow.add_function(add_n, 4)
             flow.add_function(add_n, n=6)
 
@@ -232,7 +260,8 @@ class TestFlow(unittest.TestCase):
         expected_count = 10
         expected_results = {2, 4, 6, 8, 10, 12, 14, 16, 18, 20}
 
-        with MultithreadedFlow(iterator, expected_count) as flow:
+        with MultithreadedFlow() as flow:
+            flow.consume(iterator, expected_count)
             flow.add_function(add_one)
             flow.add_function(return_pair)
             flow.add_function(add_n).expand_params()
@@ -256,7 +285,8 @@ class TestFlow(unittest.TestCase):
 
         expected_count = 10
 
-        with MultithreadedFlow(iterator, expected_count) as flow:
+        with MultithreadedFlow() as flow:
+            flow.consume(iterator, expected_count)
             flow.add_function(return_kwargs)
             flow.add_function(conditional_multiply).expand_params()
 
@@ -284,7 +314,8 @@ class TestFlow(unittest.TestCase):
 
         expected_count = 10
 
-        with MultithreadedFlow(iterator, expected_count) as flow:
+        with MultithreadedFlow() as flow:
+            flow.consume(iterator, expected_count)
             flow.add_function(return_args_and_kwargs)
             flow.add_function(pick_item).expand_params()
 
@@ -324,8 +355,8 @@ class TestFlow(unittest.TestCase):
         expected_failed = 1
         expected_count = expected_success + expected_failed
 
-        with MultithreadedFlow(iterator, expected_count) as flow:
-            flow.set_params(quiet_traceback=True)
+        with MultithreadedFlow(quiet_traceback=True) as flow:
+            flow.consume(iterator, expected_count)
             flow.add_function(return_args_and_kwargs)
             flow.add_function(divide_nums).expand_params().error_handler(handle_error)
 
@@ -385,8 +416,8 @@ class TestFlow(unittest.TestCase):
         expected_failed = 5
         expected_count = expected_success + expected_failed
 
-        with MultithreadedFlow(iterator, expected_count) as flow:
-            flow.set_params(quiet_traceback=True)
+        with MultithreadedFlow(quiet_traceback=True) as flow:
+            flow.consume(iterator, expected_count)
             flow.add_function(even_throw_exception).error_handler(exception_handler)
 
             for output in flow:
@@ -410,8 +441,8 @@ class TestFlow(unittest.TestCase):
         expected_failed = 2
         expected_count = expected_success + expected_failed
 
-        with MultithreadedFlow(iterator, expected_count) as flow:
-            flow.set_params(quiet_traceback=True)
+        with MultithreadedFlow(quiet_traceback=True) as flow:
+            flow.consume(iterator, expected_count)
             flow.add_function(even_throw_exception).error_handler(exception_handler)
 
             for output in flow:
@@ -433,8 +464,8 @@ class TestFlow(unittest.TestCase):
 
         valid_results = {4, 5, 7, 8, 9, 10, 11}
 
-        with MultithreadedFlow(iterator, 8) as flow:
-            flow.set_params(quiet_traceback=True)
+        with MultithreadedFlow(quiet_traceback=True) as flow:
+            flow.consume(iterator, 8)
             flow.add_function(returns_item)
             flow.add_function(even_throw_exception).error_handler(exception_handler)
             flow.add_function(add_n, n=4)
@@ -462,7 +493,8 @@ class TestFlow(unittest.TestCase):
 
         options = {3, 5, 7, 9}
 
-        with MultithreadedFlow(iterator, 8) as flow:
+        with MultithreadedFlow() as flow:
+            flow.consume(iterator, 8)
             flow.add_function(add_one)
             flow.add_function(exit_on_even)
             flow.add_function(add_two)
@@ -529,13 +561,13 @@ class TestFlow(unittest.TestCase):
         expected_count = 25
 
         with self.assertLogs(logger, level=logging.INFO) as l:
-            with MultithreadedFlow(iterator, expected_count) as flow:
-                flow.set_params(
-                    max_workers=100,
-                    logger=logger,
-                    log_interval=1,
-                    log_periodically=True
-                )
+            with MultithreadedFlow(
+                max_workers=100,
+                logger=logger,
+                log_interval=1,
+                log_periodically=True
+            ) as flow:
+                flow.consume(iterator, expected_count)
                 flow.add_function('fn1', sleep_mod)
                 flow.add_function('fn2', sleep_mod)
 
@@ -597,7 +629,8 @@ class TestFlow(unittest.TestCase):
         old_stderr = sys.stderr
         redirected_error = sys.stderr = io.StringIO()
 
-        with MultithreadedFlow([exception_str]) as flow:
+        with MultithreadedFlow() as flow:
+            flow.consume([exception_str])
             flow.add_function(throw_exception)
 
             for output in flow:
@@ -625,8 +658,8 @@ class TestFlow(unittest.TestCase):
 
         expected_count = 10
 
-        with MultithreadedFlow(iterator, expected_count) as flow:
-            flow.set_params(thread_prefix=thread_prefix)
+        with MultithreadedFlow(thread_prefix=thread_prefix) as flow:
+            flow.consume(iterator, expected_count)
             flow.add_function(get_thread_name)
 
             for output in flow:

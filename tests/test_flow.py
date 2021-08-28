@@ -486,4 +486,35 @@ class TestFlow(unittest.TestCase):
 
             sys.stderr = old_stderr
 
+    def test_flow_thread_name_prefix(self):
+        log_name = 'test'
+        log_format = '%(name)s-%(levelname)s-%(threadName)s-%(message)s'
+        unittest.case._AssertLogsContext.LOGGING_FORMAT = log_format
+        logger = get_logger(log_name, log_format=log_format)
+        thread_prefix = 'qwerty'
+        error_msg = 'this is an error message'
 
+        with self.assertLogs(logger, level=logging.INFO) as l:
+            with MultithreadedFlow([error_msg]) as flow:
+                flow.set_params(
+                    logger=logger,
+                    quiet_traceback=True,
+                    log_error=True,
+                    thread_prefix=thread_prefix
+                )
+                flow.add_function(throw_exception)
+
+                for output in flow:
+                    pass
+
+                count = flow.get_failed_job_count()
+
+            self.assertEqual(1, count)
+
+            for log_statement in l.output:
+                log_parts = log_statement.split('-')
+                self.assertEqual(log_name, log_parts[0])
+                self.assertEqual('ERROR', log_parts[1])
+                self.assertTrue(log_parts[2].startswith(thread_prefix))
+                self.assertNotIn('Multiflow', log_parts[2])
+                self.assertIn(error_msg, log_parts[3])

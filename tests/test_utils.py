@@ -14,38 +14,38 @@ class TestUtils(unittest.TestCase):
         expected_result = ''
         self.assertEqual(expected_result, result)
 
-    def test_calc_args_one(self):
+    def test_count_args_one(self):
         def test(one):
             pass
 
-        result = calc_args(test)
+        result = count_args(test)
         expected_result = 1
 
         self.assertEqual(expected_result, result)
 
-    def test_calc_args_one_with_kwargs(self):
+    def test_count_args_one_with_kwargs(self):
         def test(one, value=None, other=None):
             pass
 
-        result = calc_args(test)
+        result = count_args(test)
         expected_result = 1
 
         self.assertEqual(expected_result, result)
 
-    def test_calc_args_zero(self):
+    def test_count_args_zero(self):
         def test():
             pass
 
-        result = calc_args(test)
+        result = count_args(test)
         expected_result = 0
 
         self.assertEqual(expected_result, result)
 
-    def test_calc_args_zero_with_kwargs(self):
+    def test_count_args_zero_with_kwargs(self):
         def test(value=None, other=None):
             pass
 
-        result = calc_args(test)
+        result = count_args(test)
         expected_result = 0
 
         self.assertEqual(expected_result, result)

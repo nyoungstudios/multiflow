@@ -3,9 +3,9 @@ Util functions
 """
 
 
-def calc_args(fn):
+def count_args(fn):
     """
-    Calculates the number of arguments a function accepts from its signature
+    Counts the number of arguments a function accepts from its signature
 
     :param fn: A function
     :return: The number of arguments of a function

@@ -225,6 +225,135 @@ class TestFlow(unittest.TestCase):
         for i in range(10, expected_count + 10):
             self.assertIn(i, items)
 
+    def test_flow_expand_args(self):
+        def return_pair(x):
+            return x, x
+
+        expected_count = 10
+        expected_results = {2, 4, 6, 8, 10, 12, 14, 16, 18, 20}
+
+        with MultithreadedFlow(iterator, expected_count) as flow:
+            flow.add_function(add_one)
+            flow.add_function(return_pair)
+            flow.add_function(add_n).expand_params()
+
+            for i, output in enumerate(flow):
+                self.assertIn(output.get_result(), expected_results)
+
+            count = flow.get_successful_job_count()
+
+        self.assertEqual(expected_count, count)
+
+    def test_flow_expand_kwargs(self):
+        def return_kwargs(x):
+            return {'value': x, 'less_than_five': x < 5}
+
+        def conditional_multiply(value=0, less_than_five=True):
+            if less_than_five:
+                return value - 5
+            else:
+                return value + 5
+
+        expected_count = 10
+
+        with MultithreadedFlow(iterator, expected_count) as flow:
+            flow.add_function(return_kwargs)
+            flow.add_function(conditional_multiply).expand_params()
+
+            for i, output in enumerate(flow):
+                if i < 5:
+                    self.assertEqual(i - 5, output.get_result())
+                else:
+                    self.assertEqual(i + 5, output.get_result())
+
+            count = flow.get_successful_job_count()
+
+        self.assertEqual(expected_count, count)
+
+    def test_flow_expand_args_and_kwargs(self):
+        def return_args_and_kwargs(x):
+            return (x, x + 1, x + 2, {'item': x % 3})
+
+        def pick_item(v1, v2, v3, item=0):
+            if item == 0:
+                return v1
+            elif item == 1:
+                return v2
+            else:
+                return v3
+
+        expected_count = 10
+
+        with MultithreadedFlow(iterator, expected_count) as flow:
+            flow.add_function(return_args_and_kwargs)
+            flow.add_function(pick_item).expand_params()
+
+            for i, output in enumerate(flow):
+                expected_value = i + (i % 3)
+                self.assertEqual(expected_value, output.get_result())
+
+            count = flow.get_successful_job_count()
+
+        self.assertEqual(expected_count, count)
+
+    def test_flow_expand_args_and_kwargs_with_error(self):
+        error_msg = 'Special error'
+        value1 = 'foo'
+        value2 = 'bar'
+
+        def return_args_and_kwargs(x):
+            return (9, x, {'value': value1, 'another_value': value2})
+
+        def divide_nums(numerator, denominator, value=None, another_value=None):
+            v = numerator / denominator
+            if v == 1:
+                raise CustomException(error_msg)
+
+            if v >= 2:
+                return value
+            else:
+                return another_value
+
+        def handle_error(error, numerator, denominator, value=None, another_value=None):
+            if isinstance(error, ZeroDivisionError):
+                return value + another_value
+            else:
+                raise error
+
+        expected_success = 9
+        expected_failed = 1
+        expected_count = expected_success + expected_failed
+
+        with MultithreadedFlow(iterator, expected_count) as flow:
+            flow.set_params(quiet_traceback=True)
+            flow.add_function(return_args_and_kwargs)
+            flow.add_function(divide_nums).expand_params().error_handler(handle_error)
+
+            value1_count = 0
+            value2_count = 0
+            combined_value_count = 0
+
+            for output in flow:
+                if output:
+                    if value1 == output.get_result():
+                        value1_count += 1
+                    elif value2 == output.get_result():
+                        value2_count += 1
+                    elif value1 + value2 == output.get_result():
+                        combined_value_count += 1
+                else:
+                    self.assertEqual(error_msg, str(output.get_exception()))
+
+            self.assertEqual(4, value1_count)
+            self.assertEqual(4, value2_count)
+            self.assertEqual(1, combined_value_count)
+
+            success_count = flow.get_successful_job_count()
+            failed_count = flow.get_failed_job_count()
+
+        self.assertEqual(expected_success, success_count)
+        self.assertEqual(expected_failed, failed_count)
+
     def test_exception_catcher(self):
         expected_count = 6
         error_indices = {0, 2, 4}

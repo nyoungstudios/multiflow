@@ -13,7 +13,7 @@ import traceback
 from typing import Any, Callable, Generator, Iterable, Union
 
 
-from multiflow.utils import calc_args, pluralize
+from multiflow.utils import count_args, pluralize
 
 
 class DummyItem:
@@ -47,6 +47,7 @@ class FlowFunction:
         self._kwargs = kwargs
 
         self._handler = None
+        self._expand = False
 
     def error_handler(self, fn: Callable):
         """
@@ -58,23 +59,46 @@ class FlowFunction:
         """
         self._handler = fn
 
+        return self
+
+    def expand_params(self):
+        """
+        Will expand the args and kwargs passed as an input from the previous function or iterator. So if the return
+        value from the previous function or iterator is a tuple, then the items in the tuple will be interpreted as
+        arguments in this function. If the last item in the tuple is a dictionary or the return value is a dictionary,
+        then those values will be interpreted as kwargs in this function.
+
+        """
+        self._expand = True
+        return self
+
     def _calc_args(self, prev):
         if prev is None:
             return self._args
         else:
-            return (prev, *self._args)
+            if self._expand and isinstance(prev, tuple):
+                if isinstance(prev[-1], dict):
+                    return (*prev[:-1], *self._args), prev[-1]
+                else:
+                    return (*prev, *self._args), {}
+            elif self._expand and isinstance(prev, dict):
+                return (), prev
+            else:
+                return (prev, *self._args), {}
 
     def handle(self, exception: Exception, prev=None):
         if self._handler:
             try:
-                return self._handler(exception, *self._calc_args(prev), **self._kwargs), None
+                args, additional_kwargs = self._calc_args(prev)
+                return self._handler(exception, *args, **additional_kwargs, **self._kwargs), None
             except Exception as e:
                 return e, sys.exc_info()
         else:
             return exception, sys.exc_info()
 
     def run(self, prev=None):
-        return self._fn(*self._calc_args(prev), **self._kwargs)
+        args, additional_kwargs = self._calc_args(prev)
+        return self._fn(*args, **additional_kwargs, **self._kwargs)
 
 
 class StoppableThread(Thread):
@@ -190,7 +214,7 @@ class MultithreadedGeneratorBase:
             assert isinstance(logger, logging.Logger)
 
         if log_function:
-            self._log_fn_args = calc_args(log_function)
+            self._log_fn_args = count_args(log_function)
             assert self._log_fn_args == 2 or self._log_fn_args == 3, \
                 'Log function can only have two or three arguments, the first being the number of successful jobs ' \
                 'and the second being the number of failed jobs. Third argument is the job name (which is optional)'

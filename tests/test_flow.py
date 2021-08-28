@@ -112,14 +112,13 @@ class TestFlow(unittest.TestCase):
 
         expected_before_count = 0
         expected_count = 0
-        with MultithreadedFlow() as flow:
+        with MultithreadedFlow(
+            logger=logger,
+            log_interval=1,
+            log_periodically=True
+        ) as flow:
             flow.consume(iterator, expected_count)
             before_count = flow.get_successful_job_count() + flow.get_failed_job_count()
-            flow.set_params(
-                logger=logger,
-                log_interval=1,
-                log_periodically=True
-            )
             flow.add_function(returns_item)
             flow.add_function(returns_item)
 

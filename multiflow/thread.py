@@ -508,7 +508,7 @@ class MultithreadedFlow:
         elif isinstance(args[0], Iterable):
             self._iterable = args[0]
         else:
-            raise Exception('First item must be an iterable item or function returning an iterator')
+            raise FlowException('First item must be an iterable item or function returning an iterator')
 
         self._args = args[1:]
         self._kwargs = kwargs

@@ -48,6 +48,7 @@ class FlowFunction:
 
         self._handler = None
         self._expand = False
+        self._additional_kwargs = {}
 
     def error_handler(self, fn: Callable):
         """
@@ -78,27 +79,30 @@ class FlowFunction:
         else:
             if self._expand and isinstance(prev, tuple):
                 if isinstance(prev[-1], dict):
-                    return (*prev[:-1], *self._args), prev[-1]
+                    self._additional_kwargs = prev[-1]
+                    return (*prev[:-1], *self._args)
                 else:
-                    return (*prev, *self._args), {}
+                    return (*prev, *self._args)
             elif self._expand and isinstance(prev, dict):
-                return (), prev
+                self._additional_kwargs = prev
+                return ()
             else:
-                return (prev, *self._args), {}
+                return (prev, *self._args)
 
     def handle(self, exception: Exception, prev=None):
         if self._handler:
             try:
-                args, additional_kwargs = self._calc_args(prev)
-                return self._handler(exception, *args, **additional_kwargs, **self._kwargs), None
+                args = self._calc_args(prev)
+                return self._handler(exception, *args, **self._additional_kwargs, **self._kwargs), None
             except Exception as e:
                 return e, sys.exc_info()
         else:
             return exception, sys.exc_info()
 
     def run(self, prev=None):
-        args, additional_kwargs = self._calc_args(prev)
-        return self._fn(*args, **additional_kwargs, **self._kwargs)
+        args = self._calc_args(prev)
+        return self._fn(*args, **self._additional_kwargs, **self._kwargs)
+
 
 
 class StoppableThread(Thread):

@@ -48,7 +48,6 @@ class FlowFunction:
 
         self._handler = None
         self._expand = False
-        self._additional_kwargs = {}
 
     def error_handler(self, fn: Callable):
         """
@@ -68,40 +67,37 @@ class FlowFunction:
         value from the previous function or iterator is a tuple, then the items in the tuple will be interpreted as
         arguments in this function. If the last item in the tuple is a dictionary or the return value is a dictionary,
         then those values will be interpreted as kwargs in this function.
-
         """
         self._expand = True
         return self
 
     def _calc_args(self, prev):
         if prev is None:
-            return self._args
+            return (self._args, {})
         else:
             if self._expand and isinstance(prev, tuple):
                 if isinstance(prev[-1], dict):
-                    self._additional_kwargs = prev[-1]
-                    return (*prev[:-1], *self._args)
+                    return ((*prev[:-1], *self._args), prev[-1])
                 else:
-                    return (*prev, *self._args)
+                    return ((*prev, *self._args), {})
             elif self._expand and isinstance(prev, dict):
-                self._additional_kwargs = prev
-                return ()
+                return ((), prev)
             else:
-                return (prev, *self._args)
+                return ((prev, *self._args), {})
 
     def handle(self, exception: Exception, prev=None):
         if self._handler:
             try:
-                args = self._calc_args(prev)
-                return self._handler(exception, *args, **self._additional_kwargs, **self._kwargs), None
+                args, additional_kwargs = self._calc_args(prev)
+                return self._handler(exception, *args, **additional_kwargs, **self._kwargs), None
             except Exception as e:
                 return e, sys.exc_info()
         else:
             return exception, sys.exc_info()
 
     def run(self, prev=None):
-        args = self._calc_args(prev)
-        return self._fn(*args, **self._additional_kwargs, **self._kwargs)
+        args, additional_kwargs = self._calc_args(prev)
+        return self._fn(*args, **additional_kwargs, **self._kwargs)
 
 
 

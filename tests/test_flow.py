@@ -635,4 +635,3 @@ class TestFlow(unittest.TestCase):
             count = flow.get_successful_job_count()
 
         self.assertEqual(expected_count, count)
-

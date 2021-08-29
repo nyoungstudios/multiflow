@@ -10,7 +10,7 @@ import sys
 from threading import Thread, Event
 import time
 import traceback
-from typing import Any, Callable, Generator, Iterable, Union
+from typing import Any, Callable, Generator, Iterable
 
 
 from multiflow.utils import count_args, pluralize
@@ -72,6 +72,13 @@ class FlowFunction:
         return self
 
     def _calc_args(self, prev):
+        """
+        Calculates args and additional kwargs to pass to function. Extra parentheses in return tuple is for <= 3.7
+        Python support
+
+        :param prev: return value from previous function in process flow
+        :return: A tuple with the first item as the args and the second as the additional kwargs
+        """
         if prev is None:
             return (self._args, {})
         else:
@@ -86,6 +93,14 @@ class FlowFunction:
                 return ((prev, *self._args), {})
 
     def handle(self, exception: Exception, prev=None):
+        """
+        Handles exception thrown by running the function
+
+        :param exception: the
+        :param prev: return value from previous function in process flow
+        :return: a tuple with the first item as the new exception if it failed or the return value of the error
+            handling function. And the second item is the exc info for capturing the traceback of the exception
+        """
         if self._handler:
             try:
                 args, additional_kwargs = self._calc_args(prev)
@@ -96,9 +111,14 @@ class FlowFunction:
             return exception, sys.exc_info()
 
     def run(self, prev=None):
+        """
+        Runs the function
+
+        :param prev: return value from previous function in process flow
+        :return: the return value of the function
+        """
         args, additional_kwargs = self._calc_args(prev)
         return self._fn(*args, **additional_kwargs, **self._kwargs)
-
 
 
 class StoppableThread(Thread):

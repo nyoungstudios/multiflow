@@ -520,7 +520,7 @@ class TestFlow(unittest.TestCase):
             def consumer(self):
                 self.submit_job(throw_exception, exception_str)
 
-        with self.assertLogs(logger, level=logging.INFO) as l:
+        with self.assertLogs(logger, level=logging.INFO) as log:
             with TestException(
                 logger=logger,
                 retry_count=2,
@@ -543,7 +543,7 @@ class TestFlow(unittest.TestCase):
                 'ERROR:{}:Job failed with exception: {}'.format(log_name, exception_str)
             ]
 
-            self.assertEqual(expected_logs, l.output)
+            self.assertEqual(expected_logs, log.output)
 
     def test_periodic_logger(self):
         def sleep_mod(value):
@@ -559,7 +559,7 @@ class TestFlow(unittest.TestCase):
 
         expected_count = 25
 
-        with self.assertLogs(logger, level=logging.INFO) as l:
+        with self.assertLogs(logger, level=logging.INFO) as log:
             with MultithreadedFlow(
                 max_workers=100,
                 logger=logger,
@@ -577,10 +577,10 @@ class TestFlow(unittest.TestCase):
 
             self.assertEqual(expected_count, count)
 
-            if not l.output:
+            if not log.output:
                 self.fail('No periodic logs were recorded')
 
-            for log_statement in l.output:
+            for log_statement in log.output:
                 log_parts = log_statement.split(':')
                 self.assertEqual('INFO', log_parts[0])
                 self.assertEqual(log_name, log_parts[1])
@@ -599,7 +599,7 @@ class TestFlow(unittest.TestCase):
             def consumer(self):
                 self.submit_job(throw_exception, exception_str)
 
-        with self.assertLogs(logger, level=logging.INFO) as l:
+        with self.assertLogs(logger, level=logging.INFO) as log:
             with TestException(
                 logger=logger,
                 log_error=True
@@ -616,7 +616,7 @@ class TestFlow(unittest.TestCase):
             expected_log_error = 'ERROR:{}:Job failed with exception: {}'.format(log_name, exception_str)
             traceback_first_line = 'Traceback (most recent call last):'
 
-            lines = l.output[0].split('\n')
+            lines = log.output[0].split('\n')
 
             self.assertEqual(expected_log_error, lines[0])
             self.assertEqual(traceback_first_line, lines[1])
@@ -649,7 +649,7 @@ class TestFlow(unittest.TestCase):
 
     def test_flow_thread_name_prefix(self):
         thread_prefix = 'qwerty'
-        
+
         def get_thread_name(value):
             self.assertTrue(threading.currentThread().getName().startswith(thread_prefix))
 

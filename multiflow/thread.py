@@ -16,7 +16,7 @@ from typing import Any, Callable, Generator, Iterable
 from multiflow.utils import count_args, pluralize
 
 
-class DummyItem:
+class _DummyItem:
     def __init__(self):
         """
         Dummy class to signify the last item in the thread pool
@@ -80,19 +80,24 @@ class FlowFunction:
         :return: A tuple with the first item as the args and the second as the additional kwargs
         """
         if prev is None:
+            # noinspection PyRedundantParentheses
             return (self._args, {})
         else:
             if self._expand and isinstance(prev, tuple):
                 if isinstance(prev[-1], dict):
+                    # noinspection PyRedundantParentheses
                     return ((*prev[:-1], *self._args), prev[-1])
                 else:
+                    # noinspection PyRedundantParentheses
                     return ((*prev, *self._args), {})
             elif self._expand and isinstance(prev, dict):
+                # noinspection PyRedundantParentheses
                 return ((), prev)
             else:
+                # noinspection PyRedundantParentheses
                 return ((prev, *self._args), {})
 
-    def handle(self, exception: Exception, prev=None):
+    def _handle(self, exception: Exception, prev=None):
         """
         Handles exception thrown by running the function
 
@@ -110,7 +115,7 @@ class FlowFunction:
         else:
             return exception, sys.exc_info()
 
-    def run(self, prev=None):
+    def _run(self, prev=None):
         """
         Runs the function
 
@@ -307,7 +312,7 @@ class MultithreadedGeneratorBase:
         while True:
             output = self._output_queue.get()
 
-            if not isinstance(output, DummyItem):
+            if not isinstance(output, _DummyItem):
                 # updates successful and failed counts
                 if output.is_successful():
                     self._num_of_successful_jobs[output.get_job_id()] += 1
@@ -370,7 +375,7 @@ class MultithreadedGeneratorBase:
         while True:
             future = self._input_queue.get()
 
-            if not isinstance(future, DummyItem):
+            if not isinstance(future, _DummyItem):
                 result = future.result()
                 self._output_queue.put_nowait(result)
                 self._input_queue.task_done()
@@ -379,7 +384,7 @@ class MultithreadedGeneratorBase:
                 break
 
         # adds dummy item to end of the output queue so we know there are no more results
-        self._output_queue.put_nowait(DummyItem())
+        self._output_queue.put_nowait(_DummyItem())
 
     def set_consumer(self, fn, *args, **kwargs):
         """
@@ -405,22 +410,22 @@ class MultithreadedGeneratorBase:
         """
         self._consumer_fn(*self._consumer_args, **self._consumer_kwargs)
         # adds dummy item to end of the input queue so we know there are no more jobs to do
-        self._input_queue.put_nowait(DummyItem())
+        self._input_queue.put_nowait(_DummyItem())
 
     def submit_job(self, fn, *args, **kwargs):
         """
         Submits job to thread pool
         """
-        self.submit_job_with_jid(0, FlowFunction('', fn, *args, **kwargs))
+        self._submit_job_with_jid(0, FlowFunction('', fn, *args, **kwargs))
 
-    def submit_job_with_jid(self, jid, flow_fn, prev=None):
+    def _submit_job_with_jid(self, jid: int, flow_fn: FlowFunction, prev=None):
         """
         Submits job to thread pool
         """
         self._jid_to_name[jid] = flow_fn.name
         self._input_queue.put_nowait(self._executor.submit(self._call_fn_and_catch_exception, jid, flow_fn, prev=prev))
 
-    def _call_fn_and_catch_exception(self, jid, flow_fn: FlowFunction, prev=None):
+    def _call_fn_and_catch_exception(self, jid: int, flow_fn: FlowFunction, prev=None):
         """
         A wrapper function to call function while catching and returning the exception
         """
@@ -428,9 +433,11 @@ class MultithreadedGeneratorBase:
         exec_info = None
         for i in range(1, self._total_count + 1):
             try:
-                return JobOutput(success=True, attempts=i, job_id=jid, result=flow_fn.run(prev=prev))
+                # noinspection PyProtectedMember
+                return JobOutput(success=True, attempts=i, job_id=jid, result=flow_fn._run(prev=prev))
             except Exception as e:
-                exception, exec_info = flow_fn.handle(e, prev=prev)
+                # noinspection PyProtectedMember
+                exception, exec_info = flow_fn._handle(e, prev=prev)
                 if not exec_info:
                     return JobOutput(success=True, attempts=i, job_id=jid, result=exception)
 
@@ -599,13 +606,15 @@ class MultithreadedFlow:
         def consumer(index):
             if index == 0:
                 for item in iterable:
-                    process_flow[index].submit_job_with_jid(index, self._fn_calls[index], prev=item)
+                    # noinspection PyProtectedMember
+                    process_flow[index]._submit_job_with_jid(index, self._fn_calls[index], prev=item)
             else:
                 with process_flow[index - 1] as prev_flow:
                     for item in prev_flow.get_output():
                         if item.get_result() is not None:
-                            process_flow[index].submit_job_with_jid(index, self._fn_calls[index],
-                                                                    prev=item.get_result())
+                            # noinspection PyProtectedMember
+                            process_flow[index]._submit_job_with_jid(index, self._fn_calls[index],
+                                                                     prev=item.get_result())
                         else:
                             additional_outputs[index].append(item)
 

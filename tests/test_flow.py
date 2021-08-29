@@ -667,3 +667,55 @@ class TestFlow(unittest.TestCase):
             count = flow.get_successful_job_count()
 
         self.assertEqual(expected_count, count)
+
+    def test_flow_add_exception(self):
+        try:
+            flow = MultithreadedFlow()
+
+            new_flow = flow + 1
+            self.fail('Did not throw an exception')
+        except Exception as e:
+            self.assertIsInstance(e, FlowException)
+
+    def test_flow_add(self):
+        flow1 = MultithreadedFlow()
+        flow1.add_function(add_one)
+        flow1.add_function(add_two)
+
+        flow2 = MultithreadedFlow()
+        flow2.add_function(add_n, n=15)
+
+        final_flow = flow1 + flow2
+
+        expected_count = 10
+        with final_flow:
+            final_flow.consume(iterator, expected_count)
+
+            for output in final_flow:
+                self.assertGreaterEqual(output.get_result(), 18)
+                self.assertLess(output.get_result(), expected_count + 18)
+
+            count = final_flow.get_successful_job_count()
+
+        self.assertEqual(expected_count, count)
+
+    def test_flow_add_kwargs(self):
+        flow1 = MultithreadedFlow(retry_count=1, quiet_traceback=True, sleep_seed=0)
+        flow1.add_function(add_one)
+        flow1.add_function(even_throw_exception)
+
+        flow2 = MultithreadedFlow(retry_count=2, quiet_traceback=True, sleep_seed=0)
+        flow2.add_function(throw_exception)
+
+        final_flow = flow1 + flow2
+
+        expected_count = 10
+        with final_flow:
+            final_flow.consume(iterator, expected_count)
+
+            for output in final_flow:
+                self.assertFalse(output.is_successful())
+                if output.get_job_id() == 1:
+                    self.assertEqual(2, output.get_num_of_attempts())
+                else:
+                    self.assertEqual(3, output.get_num_of_attempts())

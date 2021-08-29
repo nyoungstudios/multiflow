@@ -478,6 +478,9 @@ class MultithreadedFlow:
         self._options = kwargs
         self._has_thread_prefix = 'thread_prefix' in self._options
 
+        self._index_to_options = {}
+        self._use_opts = True
+
         # stores the input iterable item/function iterator to consume and its arguments
         self._fn = None
         self._iterable = None
@@ -494,7 +497,7 @@ class MultithreadedFlow:
 
     def consume(self, *args, **kwargs):
         """
-        Sets the input function or iterable consumer
+        Sets the input function or iterable to be consumed by the process flow
 
         :param args: The first item is either the callable function or iterable item to consume. The rest of the items
             are the args for the callable function. Not used if first iterable item.
@@ -567,8 +570,8 @@ class MultithreadedFlow:
         # stores the MultithreadedGeneratorBase class instances for each step in the process flow
         process_flow = []
 
-        # stores the additional job successes that exited early by index
-        additional_successes = defaultdict(list)
+        # stores the additional job successes and exceptions that exited early by index
+        additional_outputs = defaultdict(list)
 
         # the iterable item to consume
         iterable = self._fn(*self._args, **self._kwargs) if self._fn else self._iterable
@@ -581,16 +584,23 @@ class MultithreadedFlow:
                 with process_flow[index - 1] as prev_flow:
                     for item in prev_flow.get_output():
                         if item.get_result() is not None:
-                            process_flow[index].submit_job_with_jid(index, self._fn_calls[index], prev=item.get_result())
-                        elif item:
-                            additional_successes[index].append(item)
+                            process_flow[index].submit_job_with_jid(index, self._fn_calls[index],
+                                                                    prev=item.get_result())
+                        else:
+                            additional_outputs[index].append(item)
 
         # builds the multithreaded process flow
         num_of_fns = len(self._fn_calls)
         for i in range(num_of_fns):
             if num_of_fns > 1 and not self._has_thread_prefix:
-                self._options['thread_prefix'] = 'Multiflow_{}_'.format(i)
-            multithreaded_generator = MultithreadedGeneratorBase(**self._options)
+                thread_prefix = 'Multiflow_{}_'.format(i)
+                if self._use_opts:
+                    self._options['thread_prefix'] = thread_prefix
+                else:
+                    self._index_to_options[i]['thread_prefix'] = thread_prefix
+
+            multithreaded_generator = MultithreadedGeneratorBase(**(self._options if self._use_opts
+                                                                    else self._index_to_options[i]))
             process_flow.append(multithreaded_generator)
             multithreaded_generator.set_consumer(consumer, i)
 
@@ -603,15 +613,40 @@ class MultithreadedFlow:
                     self._failed_count += 1
                 yield output
 
-        # yields output for upstream successes
-        for outputs in additional_successes.values():
+        # yields output for upstream successes and exceptions
+        for outputs in additional_outputs.values():
             for output in outputs:
-                self._success_count += 1
+                if output:
+                    self._success_count += 1
+                else:
+                    self._failed_count += 1
                 yield output
 
-        # updates failed counts for upstream errors
-        for i, flow in enumerate(process_flow[:-1]):
-            self._failed_count += flow.get_failed_job_count(job_id=i)
+    def __add__(self, other):
+        if not isinstance(other, MultithreadedFlow):
+            raise FlowException('Must be an instance of MultithreadedFlow')
+
+        new_flow = MultithreadedFlow()
+
+        num_of_fns = len(self._fn_calls)
+        num_of_other_fns = len(other._fn_calls)
+
+        index = 0
+
+        new_flow._fn_calls.extend(self._fn_calls)
+        for index in range(num_of_fns):
+            new_flow._index_to_options[index] = self._options
+
+        if index:
+            index += 1
+
+        new_flow._fn_calls.extend(other._fn_calls)
+        for j in range(num_of_other_fns):
+            new_flow._index_to_options[index + j] = other._options
+
+        new_flow._use_opts = False
+
+        return new_flow
 
     def __enter__(self):
         return self

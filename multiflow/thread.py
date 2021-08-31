@@ -7,13 +7,13 @@ import concurrent.futures
 import logging
 from queue import Queue
 import sys
-from threading import Thread, Event
+from threading import Event, Thread
 import time
 import traceback
 from typing import Any, Callable, Generator, Iterable
 
 
-from multiflow.utils import count_args, pluralize
+from multiflow.utils import count_args, pluralize, use_c_string
 
 
 class _DummyItem:
@@ -142,19 +142,19 @@ class StoppableThread(Thread):
 
 
 class JobOutput:
-    def __init__(self, success: bool, attempts: int, job_id: int = 0, result: Any = None, exception: Exception = None):
+    def __init__(self, success: bool, attempts: int, fn_id: int = 0, result: Any = None, exception: Exception = None):
         """
         Data class to hold the output from the MultithreadedGenerator/Multiflow
 
         :param success: If True, the job was successful; otherwise, it failed
         :param attempts: The number of attempts it ran the job
-        :param job_id: The job id
+        :param fn_id: The function id
         :param result: If successful, the output of the job run
         :param exception: If not successful, the exception caught
         """
         self._success = success
         self._attempts = attempts
-        self._job_id = job_id
+        self._fn_id = fn_id
         self._result = result
         self._exception = exception
 
@@ -170,11 +170,11 @@ class JobOutput:
         """
         return self._attempts
 
-    def get_job_id(self) -> int:
+    def get_fn_id(self) -> int:
         """
-        Returns the job id
+        Returns the function id
         """
-        return self._job_id
+        return self._fn_id
 
     def get_result(self) -> Any:
         """
@@ -211,6 +211,7 @@ class MultithreadedGeneratorBase:
         log_warning: bool = False,
         log_error: bool = False,
         log_summary: bool = False,
+        log_format: str = None,
         log_function: Callable = None,
         thread_prefix: str = None
     ):
@@ -230,6 +231,7 @@ class MultithreadedGeneratorBase:
         :param log_error: If True, will log error messages
         :param log_summary: If True, will log the total job success and failure count after all the jobs have been
             complete
+        :param log_format: The periodic log string format
         :param log_function: If provided, will call this function instead of the default periodic logger. Function must
             have 2 or 3 arguments. The first argument will be passed the number of successful jobs so far, the second
             will be passed the number of failed jobs. And the third if present, will be passed the job name
@@ -264,7 +266,7 @@ class MultithreadedGeneratorBase:
         self._total_count = retry_count + 1
 
         # managing multiple types of jobs
-        self._jid_to_name = {}
+        self._fid_to_name = {}
 
         # counts
         self._num_of_successful_jobs = defaultdict(int)
@@ -281,13 +283,30 @@ class MultithreadedGeneratorBase:
         self._log_warning = log_warning
         self._log_error = log_error
         self._log_summary = log_summary
+
+        self._log_format = log_format
+        log_kwargs = {
+            'success': 0,
+            'failed': 0,
+            's_plural': 's',
+            'f_plural': 's',
+            'name': 'fn',
+            'fid': 0
+        }
+        if self._log_format:
+            self._use_c_str_fmt = use_c_string(self._log_format, log_kwargs)
+        else:
+            self._use_c_str_fmt = True
+
         self._log_function = log_function
 
-    def get_successful_job_count(self, job_id: int = 0) -> int:
-        return self._num_of_successful_jobs[job_id]
+        self._hide_fid = False
 
-    def get_failed_job_count(self, job_id: int = 0) -> int:
-        return self._num_of_failed_jobs[job_id]
+    def get_successful_job_count(self, fn_id: int = 0) -> int:
+        return self._num_of_successful_jobs[fn_id]
+
+    def get_failed_job_count(self, fn_id: int = 0) -> int:
+        return self._num_of_failed_jobs[fn_id]
 
     def get_output(self) -> Generator[JobOutput, None, None]:
         """
@@ -315,9 +334,9 @@ class MultithreadedGeneratorBase:
             if not isinstance(output, _DummyItem):
                 # updates successful and failed counts
                 if output.is_successful():
-                    self._num_of_successful_jobs[output.get_job_id()] += 1
+                    self._num_of_successful_jobs[output.get_fn_id()] += 1
                 else:
-                    self._num_of_failed_jobs[output.get_job_id()] += 1
+                    self._num_of_failed_jobs[output.get_fn_id()] += 1
 
                 self._output_queue.task_done()
                 yield output
@@ -332,12 +351,12 @@ class MultithreadedGeneratorBase:
             self._logger_thread.stop()
             self._logger_thread.join()
 
-    def _prepend_name_for_log(self, log_msg, job_id):
-        name = self._jid_to_name[job_id]
+    def _prepend_name_for_log(self, log_msg, fn_id):
+        name = self._fid_to_name[fn_id]
 
         # if there is a name, prepend the name and job id
         if name:
-            log_msg = '{} ({}): '.format(name, job_id) + log_msg
+            log_msg = '{} ({}): '.format(name, fn_id) + log_msg
 
         return log_msg
 
@@ -348,23 +367,43 @@ class MultithreadedGeneratorBase:
 
         # as long as there is work still running
         while not self._logger_thread.is_stopped():
-            for jid, name in self._jid_to_name.items():
+            for fid, name in self._fid_to_name.items():
                 if self._log_function:
                     # uses custom log function
                     if self._log_fn_args == 2:
-                        self._log_function(self.get_successful_job_count(job_id=jid),
-                                           self.get_failed_job_count(job_id=jid))
+                        self._log_function(self.get_successful_job_count(fn_id=fid),
+                                           self.get_failed_job_count(fn_id=fid))
                     else:
-                        self._log_function(self.get_successful_job_count(job_id=jid),
-                                           self.get_failed_job_count(job_id=jid),
+                        self._log_function(self.get_successful_job_count(fn_id=fid),
+                                           self.get_failed_job_count(fn_id=fid),
                                            name)
                 else:
-                    # logs default periodic log message
-                    log_msg = '{} job{} completed successfully. {} job{} failed.'.format(
-                        self.get_successful_job_count(job_id=jid), pluralize(self.get_successful_job_count(job_id=jid)),
-                        self.get_failed_job_count(job_id=jid), pluralize(self.get_failed_job_count(job_id=jid)))
+                    name = self._fid_to_name[fid]
 
-                    self._logger.info(self._prepend_name_for_log(log_msg, jid))
+                    # builds log kwargs
+                    log_kwargs = {
+                        'success': self.get_successful_job_count(fn_id=fid),
+                        'failed': self.get_failed_job_count(fn_id=fid),
+                        'name': name,
+                        'fid': fid
+                    }
+
+                    log_kwargs.update({
+                        's_plural': pluralize(log_kwargs['success']),
+                        'f_plural': pluralize(log_kwargs['failed'])
+                    })
+
+                    if self._log_format:
+                        # logs custom periodic log message
+                        if self._use_c_str_fmt:
+                            self._logger.info(self._log_format % log_kwargs)
+                        else:
+                            self._logger.info(self._log_format.format_map(log_kwargs))
+                    else:
+                        # logs default periodic log message
+                        log_fmt = '{success} job{s_plural} completed successfully. {failed} job{f_plural} failed.'
+
+                        self._logger.info(self._prepend_name_for_log(log_fmt.format_map(log_kwargs), fid))
 
             time.sleep(self._log_interval)
 
@@ -416,16 +455,16 @@ class MultithreadedGeneratorBase:
         """
         Submits job to thread pool
         """
-        self._submit_job_with_jid(0, FlowFunction('', fn, *args, **kwargs))
+        self._submit_job_with_fid(0, FlowFunction('', fn, *args, **kwargs))
 
-    def _submit_job_with_jid(self, jid: int, flow_fn: FlowFunction, prev=None):
+    def _submit_job_with_fid(self, fid: int, flow_fn: FlowFunction, prev=None):
         """
         Submits job to thread pool
         """
-        self._jid_to_name[jid] = flow_fn.name
-        self._input_queue.put_nowait(self._executor.submit(self._call_fn_and_catch_exception, jid, flow_fn, prev=prev))
+        self._fid_to_name[fid] = flow_fn.name
+        self._input_queue.put_nowait(self._executor.submit(self._call_fn_and_catch_exception, fid, flow_fn, prev=prev))
 
-    def _call_fn_and_catch_exception(self, jid: int, flow_fn: FlowFunction, prev=None):
+    def _call_fn_and_catch_exception(self, fid: int, flow_fn: FlowFunction, prev=None):
         """
         A wrapper function to call function while catching and returning the exception
         """
@@ -434,18 +473,18 @@ class MultithreadedGeneratorBase:
         for i in range(1, self._total_count + 1):
             try:
                 # noinspection PyProtectedMember
-                return JobOutput(success=True, attempts=i, job_id=jid, result=flow_fn._run(prev=prev))
+                return JobOutput(success=True, attempts=i, fn_id=fid, result=flow_fn._run(prev=prev))
             except Exception as e:
                 # noinspection PyProtectedMember
                 exception, exec_info = flow_fn._handle(e, prev=prev)
                 if not exec_info:
-                    return JobOutput(success=True, attempts=i, job_id=jid, result=exception)
+                    return JobOutput(success=True, attempts=i, fn_id=fid, result=exception)
 
                 # if we are going to retry this job
                 if i < self._total_count:
                     if self._log_warning and self._logger:
                         log_msg = 'Retrying job after catching exception: {}'.format(exception)
-                        self._logger.warning(self._prepend_name_for_log(log_msg, jid))
+                        self._logger.warning(self._prepend_name_for_log(log_msg, fid))
 
                     time.sleep(i * self._sleep_seed)
 
@@ -457,11 +496,11 @@ class MultithreadedGeneratorBase:
                 # formats traceback and removes last newline
                 tb_msg = ''.join(tb.format())[:-1]
                 log_msg += '\n{}'.format(tb_msg)
-            self._logger.error(self._prepend_name_for_log(log_msg, jid))
+            self._logger.error(self._prepend_name_for_log(log_msg, fid))
         elif not self._logger and not self._quiet_traceback:
             traceback.print_exception(exception, *exec_info[-2:])
 
-        return JobOutput(success=False, attempts=self._total_count, job_id=jid, exception=exception)
+        return JobOutput(success=False, attempts=self._total_count, fn_id=fid, exception=exception)
 
     def __enter__(self):
         return self
@@ -516,7 +555,6 @@ class MultithreadedFlow:
 
         # to keep track of the order of functions to call
         self._fn_calls = []
-        self._last_jid = 0
 
         # counts
         self._success_count = 0
@@ -607,13 +645,13 @@ class MultithreadedFlow:
             if index == 0:
                 for item in iterable:
                     # noinspection PyProtectedMember
-                    process_flow[index]._submit_job_with_jid(index, self._fn_calls[index], prev=item)
+                    process_flow[index]._submit_job_with_fid(index, self._fn_calls[index], prev=item)
             else:
                 with process_flow[index - 1] as prev_flow:
                     for item in prev_flow.get_output():
                         if item.get_result() is not None:
                             # noinspection PyProtectedMember
-                            process_flow[index]._submit_job_with_jid(index, self._fn_calls[index],
+                            process_flow[index]._submit_job_with_fid(index, self._fn_calls[index],
                                                                      prev=item.get_result())
                         else:
                             additional_outputs[index].append(item)

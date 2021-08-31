@@ -1,5 +1,6 @@
 import logging
 import io
+from parameterized import parameterized
 import re
 import sys
 import threading
@@ -47,7 +48,14 @@ def even_throw_exception(value):
         return value
 
 
-class TestFlow(unittest.TestCase):
+def sleep_mod(value):
+    sleep_time = value % 5
+    time.sleep(sleep_time)
+
+    return sleep_time
+
+
+class TestFlowBase(unittest.TestCase):
     def setUp(self):
         self.thread_count = threading.active_count()
         self.assertEqual(1, self.thread_count)
@@ -58,6 +66,8 @@ class TestFlow(unittest.TestCase):
         self.assertEqual(1, self.thread_count)
         self.thread_count = None
 
+
+class TestFlowFlowBase(TestFlowBase):
     def test_flow_no_consumer_fn(self):
         try:
             with MultithreadedFlow() as flow:
@@ -501,9 +511,9 @@ class TestFlow(unittest.TestCase):
             for output in flow:
                 if output.get_result() is not None:
                     self.assertIn(output.get_result(), options)
-                    self.assertEqual(output.get_job_id(), 2)
+                    self.assertEqual(output.get_fn_id(), 2)
                 else:
-                    self.assertEqual(output.get_job_id(), 1)
+                    self.assertEqual(output.get_fn_id(), 1)
 
             success_count = flow.get_successful_job_count()
             failed_count = flow.get_failed_job_count()
@@ -546,12 +556,6 @@ class TestFlow(unittest.TestCase):
             self.assertEqual(expected_logs, log.output)
 
     def test_periodic_logger(self):
-        def sleep_mod(value):
-            sleep_time = value % 5
-            time.sleep(sleep_time)
-
-            return sleep_time
-
         log_name = 'test'
         logger = get_logger(log_name)
 
@@ -715,7 +719,49 @@ class TestFlow(unittest.TestCase):
 
             for output in final_flow:
                 self.assertFalse(output.is_successful())
-                if output.get_job_id() == 1:
+                if output.get_fn_id() == 1:
                     self.assertEqual(2, output.get_num_of_attempts())
                 else:
                     self.assertEqual(3, output.get_num_of_attempts())
+
+
+class TestFlowParameterizedFlowBase(TestFlowBase):
+    @parameterized.expand([
+        ('format_map', '{name}-{fid}. Abc {success} job{s_plural} so far. Xyz {failed} job{f_plural} so far.'),
+        ('percent_str', '%(name)s-%(fid)s. Abc %(success)s job%(s_plural)s so far. Xyz %(failed)s job%(f_plural)s so far.')
+    ])
+    def test_periodic_logger_custom_format(self, name, log_format):
+        log_name = 'test'
+        logger = get_logger(log_name)
+
+        log_regex = re.compile(r'^sleep_mod-[0-1]\. Abc \d+ job[s]? so far\. Xyz \d+ job[s]? so far\.$')
+
+        expected_count = 2
+
+        with self.assertLogs(logger, level=logging.INFO) as log:
+            with MultithreadedFlow(
+                max_workers=100,
+                logger=logger,
+                log_interval=1,
+                log_periodically=True,
+                log_format=log_format
+            ) as flow:
+                flow.consume(iterator, expected_count)
+                flow.add_function(sleep_mod)
+                flow.add_function(sleep_mod)
+
+                for output in flow:
+                    pass
+
+                count = flow.get_successful_job_count()
+
+            self.assertEqual(expected_count, count)
+
+            if not log.output:
+                self.fail('No periodic logs were recorded')
+
+            for log_statement in log.output:
+                log_parts = log_statement.split(':')
+                self.assertEqual('INFO', log_parts[0])
+                self.assertEqual(log_name, log_parts[1])
+                self.assertIsNotNone(log_regex.match(log_parts[2]), log_parts[2])

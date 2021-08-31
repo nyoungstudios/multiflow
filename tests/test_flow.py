@@ -555,6 +555,35 @@ class TestFlowFlowBase(TestFlowBase):
 
             self.assertEqual(expected_logs, log.output)
 
+    def test_flow_log_error(self):
+        log_name = 'test'
+        logger = get_logger(log_name)
+        exception_str = 'This is an exception'
+
+        def output_error_msg(n):
+            for _ in range(n):
+                yield exception_str
+
+        expected_failed = 10
+
+        with self.assertLogs(logger, level=logging.INFO) as log:
+            with MultithreadedFlow(logger=logger, log_error=True, quiet_traceback=True) as flow:
+                flow.consume(output_error_msg, expected_failed)
+                flow.add_function(throw_exception)
+
+                for output in flow:
+                    self.assertEqual(1, output.get_num_of_attempts())
+
+                failed_count = flow.get_failed_job_count()
+
+
+            self.assertEqual(expected_failed, failed_count)
+
+            expected_log = 'ERROR:{}:throw_exception: Job failed with exception: {}'.format(log_name, exception_str)
+            expected_logs = [expected_log] * expected_failed
+
+            self.assertEqual(expected_logs, log.output)
+
     def test_periodic_logger(self):
         log_name = 'test'
         logger = get_logger(log_name)
@@ -736,7 +765,7 @@ class TestFlowParameterizedFlowBase(TestFlowBase):
 
         log_regex = re.compile(r'^sleep_mod-[0-1]\. Abc \d+ job[s]? so far\. Xyz \d+ job[s]? so far\.$')
 
-        expected_count = 2
+        expected_count = 10
 
         with self.assertLogs(logger, level=logging.INFO) as log:
             with MultithreadedFlow(

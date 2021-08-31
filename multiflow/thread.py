@@ -356,7 +356,10 @@ class MultithreadedGeneratorBase:
 
         # if there is a name, prepend the name and job id
         if name:
-            log_msg = '{} ({}): '.format(name, fn_id) + log_msg
+            if self._hide_fid:
+                log_msg = '{}: '.format(name) + log_msg
+            else:
+                log_msg = '{} ({}): '.format(name, fn_id) + log_msg
 
         return log_msg
 
@@ -668,6 +671,8 @@ class MultithreadedFlow:
 
             multithreaded_generator = MultithreadedGeneratorBase(**(self._options if self._use_opts
                                                                     else self._index_to_options[i]))
+            if num_of_fns == 1:
+                multithreaded_generator._hide_fid = True
             process_flow.append(multithreaded_generator)
             multithreaded_generator.set_consumer(consumer, i)
 

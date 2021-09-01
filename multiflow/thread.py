@@ -16,6 +16,16 @@ from typing import Any, Callable, Generator, Iterable
 from multiflow.utils import pluralize, use_c_string
 
 
+_LOG_KWARGS = {
+    'success': 0,
+    'failed': 0,
+    's_plural': 's',
+    'f_plural': 's',
+    'name': 'fn',
+    'fid': 0
+}
+
+
 class _DummyItem:
     def __init__(self):
         """
@@ -275,16 +285,8 @@ class MultithreadedGeneratorBase:
         self._log_summary = log_summary
 
         self._log_format = log_format
-        log_kwargs = {
-            'success': 0,
-            'failed': 0,
-            's_plural': 's',
-            'f_plural': 's',
-            'name': 'fn',
-            'fid': 0
-        }
         if self._log_format:
-            self._use_c_str_fmt = use_c_string(self._log_format, log_kwargs)
+            self._use_c_str_fmt = use_c_string(self._log_format, _LOG_KWARGS)
         else:
             self._use_c_str_fmt = True
 
@@ -529,6 +531,12 @@ class MultithreadedFlow:
         # options for MultithreadedGeneratorBase
         self._options = kwargs
         self._has_thread_prefix = 'thread_prefix' in self._options
+
+        # raises KeyError if there are problems with the log format before lazily failing in a child thread
+        log_format = self._options.get('log_format')
+        if log_format:
+            # noinspection PyProtectedMember
+            use_c_string(log_format, _LOG_KWARGS)
 
         self._index_to_options = {}
         self._use_opts = True

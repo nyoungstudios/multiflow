@@ -797,3 +797,17 @@ class TestFlowParameterizedFlowBase(TestFlowBase):
                 self.assertEqual('INFO', log_parts[0])
                 self.assertEqual(log_name, log_parts[1])
                 self.assertIsNotNone(log_regex.match(log_parts[2]), log_parts[2])
+
+    @parameterized.expand([
+        ('format_map', '{fail}'),
+        ('percent_str', '%(fail)s')
+    ])
+    def test_flow_log_format_key_error(self, name, log_format):
+        try:
+            with MultithreadedFlow(log_format=log_format) as flow:
+                flow.add_function(sleep_mod)
+
+                self.fail('Did not throw KeyError Exception')
+
+        except Exception as e:
+            self.assertIsInstance(e, KeyError)

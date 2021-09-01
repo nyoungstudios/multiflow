@@ -42,6 +42,8 @@ def use_c_string(str_format: str, items: dict):
     """
     value = str_format % items
     if value == str_format:
+        # raises KeyError if the string format has values not present in the dictionary
+        str_format.format_map(items)
         return False
     else:
         return True

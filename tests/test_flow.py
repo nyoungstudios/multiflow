@@ -548,9 +548,9 @@ class TestFlowFlowBase(TestFlowBase):
             self.assertEqual(1, failed_count)
 
             expected_logs = [
-                'WARNING:{}:Retrying job after catching exception: {}'.format(log_name, exception_str),
-                'WARNING:{}:Retrying job after catching exception: {}'.format(log_name, exception_str),
-                'ERROR:{}:Job failed with exception: {}'.format(log_name, exception_str)
+                'WARNING:{}:{}(): Retrying job after catching exception: {}'.format(log_name, throw_exception.__name__, exception_str),
+                'WARNING:{}:{}(): Retrying job after catching exception: {}'.format(log_name, throw_exception.__name__, exception_str),
+                'ERROR:{}:{}(): Job failed with exception: {}'.format(log_name, throw_exception.__name__, exception_str)
             ]
 
             self.assertEqual(expected_logs, log.output)

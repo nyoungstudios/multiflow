@@ -339,7 +339,7 @@ class MultithreadedGeneratorBase:
             self._logger_thread.stop()
             self._logger_thread.join()
 
-    def _prepend_name_for_log(self, log_msg, fn_id):
+    def _prepend_name_for_log(self, log_msg, fn_id, fn=None):
         name = self._fid_to_name[fn_id]
 
         # if there is a name, prepend the name and job id
@@ -348,6 +348,8 @@ class MultithreadedGeneratorBase:
                 log_msg = '{}: '.format(name) + log_msg
             else:
                 log_msg = '{} ({}): '.format(name, fn_id) + log_msg
+        elif fn:
+            log_msg = '{}(): '.format(fn.__name__) + log_msg
 
         return log_msg
 
@@ -465,7 +467,8 @@ class MultithreadedGeneratorBase:
                 if i < self._total_count:
                     if self._log_warning and self._logger:
                         log_msg = 'Retrying job after catching exception: {}'.format(exception)
-                        self._logger.warning(self._prepend_name_for_log(log_msg, fid))
+                        # noinspection PyProtectedMember
+                        self._logger.warning(self._prepend_name_for_log(log_msg, fid, fn=flow_fn._fn))
 
                     time.sleep(i * self._sleep_seed)
 
@@ -477,7 +480,8 @@ class MultithreadedGeneratorBase:
                 # formats traceback and removes last newline
                 tb_msg = ''.join(tb.format())[:-1]
                 log_msg += '\n{}'.format(tb_msg)
-            self._logger.error(self._prepend_name_for_log(log_msg, fid))
+            # noinspection PyProtectedMember
+            self._logger.error(self._prepend_name_for_log(log_msg, fid, fn=flow_fn._fn))
         elif not self._logger and not self._quiet_traceback:
             traceback.print_exception(exception, *exec_info[-2:])
 

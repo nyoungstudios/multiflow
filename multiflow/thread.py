@@ -13,7 +13,7 @@ import traceback
 from typing import Any, Callable, Generator, Iterable
 
 
-from multiflow.utils import count_args, pluralize, use_c_string
+from multiflow.utils import pluralize, use_c_string
 
 
 class _DummyItem:
@@ -212,7 +212,6 @@ class MultithreadedGeneratorBase:
         log_error: bool = False,
         log_summary: bool = False,
         log_format: str = None,
-        log_function: Callable = None,
         thread_prefix: str = None
     ):
         """
@@ -232,19 +231,10 @@ class MultithreadedGeneratorBase:
         :param log_summary: If True, will log the total job success and failure count after all the jobs have been
             complete
         :param log_format: The periodic log string format
-        :param log_function: If provided, will call this function instead of the default periodic logger. Function must
-            have 2 or 3 arguments. The first argument will be passed the number of successful jobs so far, the second
-            will be passed the number of failed jobs. And the third if present, will be passed the job name
         :param thread_prefix: The prefix of the thread names. Defaults to "Multiflow"
         """
         if logger is not None:
             assert isinstance(logger, logging.Logger)
-
-        if log_function:
-            self._log_fn_args = count_args(log_function)
-            assert self._log_fn_args == 2 or self._log_fn_args == 3, \
-                'Log function can only have two or three arguments, the first being the number of successful jobs ' \
-                'and the second being the number of failed jobs. Third argument is the job name (which is optional)'
 
         self._input_queue = Queue()  # for storing the job to execute
         self._output_queue = Queue()  # for storing the job result
@@ -297,8 +287,6 @@ class MultithreadedGeneratorBase:
             self._use_c_str_fmt = use_c_string(self._log_format, log_kwargs)
         else:
             self._use_c_str_fmt = True
-
-        self._log_function = log_function
 
         self._hide_fid = False
 
@@ -371,42 +359,32 @@ class MultithreadedGeneratorBase:
         # as long as there is work still running
         while not self._logger_thread.is_stopped():
             for fid, name in self._fid_to_name.items():
-                if self._log_function:
-                    # uses custom log function
-                    if self._log_fn_args == 2:
-                        self._log_function(self.get_successful_job_count(fn_id=fid),
-                                           self.get_failed_job_count(fn_id=fid))
+                name = self._fid_to_name[fid]
+
+                # builds log kwargs
+                log_kwargs = {
+                    'success': self.get_successful_job_count(fn_id=fid),
+                    'failed': self.get_failed_job_count(fn_id=fid),
+                    'name': name,
+                    'fid': fid
+                }
+
+                log_kwargs.update({
+                    's_plural': pluralize(log_kwargs['success']),
+                    'f_plural': pluralize(log_kwargs['failed'])
+                })
+
+                if self._log_format:
+                    # logs custom periodic log message
+                    if self._use_c_str_fmt:
+                        self._logger.info(self._log_format % log_kwargs)
                     else:
-                        self._log_function(self.get_successful_job_count(fn_id=fid),
-                                           self.get_failed_job_count(fn_id=fid),
-                                           name)
+                        self._logger.info(self._log_format.format_map(log_kwargs))
                 else:
-                    name = self._fid_to_name[fid]
+                    # logs default periodic log message
+                    log_fmt = '{success} job{s_plural} completed successfully. {failed} job{f_plural} failed.'
 
-                    # builds log kwargs
-                    log_kwargs = {
-                        'success': self.get_successful_job_count(fn_id=fid),
-                        'failed': self.get_failed_job_count(fn_id=fid),
-                        'name': name,
-                        'fid': fid
-                    }
-
-                    log_kwargs.update({
-                        's_plural': pluralize(log_kwargs['success']),
-                        'f_plural': pluralize(log_kwargs['failed'])
-                    })
-
-                    if self._log_format:
-                        # logs custom periodic log message
-                        if self._use_c_str_fmt:
-                            self._logger.info(self._log_format % log_kwargs)
-                        else:
-                            self._logger.info(self._log_format.format_map(log_kwargs))
-                    else:
-                        # logs default periodic log message
-                        log_fmt = '{success} job{s_plural} completed successfully. {failed} job{f_plural} failed.'
-
-                        self._logger.info(self._prepend_name_for_log(log_fmt.format_map(log_kwargs), fid))
+                    self._logger.info(self._prepend_name_for_log(log_fmt.format_map(log_kwargs), fid))
 
             time.sleep(self._log_interval)
 

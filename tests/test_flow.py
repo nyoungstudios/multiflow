@@ -599,45 +599,6 @@ class TestFlowFlowBase(TestFlowBase):
 
             self.assertEqual(expected_logs, log.output)
 
-    def test_periodic_logger(self):
-        log_name = 'test'
-        logger = get_logger(log_name)
-
-        log_regex = re.compile(r'^ \d+ job[s]? completed successfully\. \d+ job[s]? failed\.$')
-
-        expected_count = 25
-
-        with self.assertLogs(logger, level=logging.INFO) as log:
-            with MultithreadedFlow(
-                max_workers=100,
-                logger=logger,
-                log_interval=1,
-                log_periodically=True
-            ) as flow:
-                flow.consume(iterator, expected_count)
-                flow.add_function('fn1', sleep_mod)
-                flow.add_function('fn2', sleep_mod)
-
-                for output in flow:
-                    pass
-
-                count = flow.get_successful_job_count()
-
-            self.assertEqual(expected_count, count)
-
-            if not log.output:
-                self.fail('No periodic logs were recorded')
-
-            for log_statement in log.output:
-                log_parts = log_statement.split(':')
-                self.assertEqual('INFO', log_parts[0])
-                self.assertEqual(log_name, log_parts[1])
-                if log_parts[2].startswith('fn1'):
-                    self.assertEqual('fn1 (0)', log_parts[2])
-                else:
-                    self.assertEqual('fn2 (1)', log_parts[2])
-                self.assertIsNotNone(log_regex.match(log_parts[3]), log_parts[2])
-
     def test_log_traceback(self):
         log_name = 'test'
         logger = get_logger(log_name)
@@ -770,6 +731,50 @@ class TestFlowFlowBase(TestFlowBase):
 
 
 class TestFlowParameterizedFlowBase(TestFlowBase):
+    @parameterized.expand([
+        ('log_only_last', True),
+        ('log_all', False)
+    ])
+    def test_periodic_logger(self, name, log_only_last):
+        log_name = 'test'
+        logger = get_logger(log_name)
+
+        log_regex = re.compile(r'^ \d+ job[s]? completed successfully\. \d+ job[s]? failed\.$')
+
+        expected_count = 15
+
+        with self.assertLogs(logger, level=logging.INFO) as log:
+            with MultithreadedFlow(
+                max_workers=100,
+                logger=logger,
+                log_interval=1,
+                log_periodically=True,
+                log_only_last=log_only_last
+            ) as flow:
+                flow.consume(iterator, expected_count)
+                flow.add_function('fn1', sleep_mod)
+                flow.add_function('fn2', sleep_mod)
+
+                for output in flow:
+                    pass
+
+                count = flow.get_successful_job_count()
+
+            self.assertEqual(expected_count, count)
+
+            if not log.output:
+                self.fail('No periodic logs were recorded')
+
+            for log_statement in log.output:
+                log_parts = log_statement.split(':')
+                self.assertEqual('INFO', log_parts[0])
+                self.assertEqual(log_name, log_parts[1])
+                if not log_only_last and log_parts[2].startswith('fn1'):
+                    self.assertEqual('fn1 (0)', log_parts[2])
+                else:
+                    self.assertEqual('fn2 (1)', log_parts[2])
+                self.assertIsNotNone(log_regex.match(log_parts[3]), log_parts[2])
+
     @parameterized.expand([
         ('format_map', '{name}-{fid}. Abc {success} job{s_plural} so far. Xyz {failed} job{f_plural} so far.'),
         ('percent_str', '%(name)s-%(fid)s. Abc %(success)s job%(s_plural)s so far. Xyz %(failed)s job%(f_plural)s so far.')

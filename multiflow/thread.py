@@ -519,12 +519,14 @@ class MultithreadedGenerator(ABC, MultithreadedGeneratorBase):
 
 
 class MultithreadedFlow:
-    def __init__(self, **kwargs):
+    def __init__(self, log_only_last=False, **kwargs):
         """
         Like the MultithreadedGenerator, this accepts a generator, does some work in a thread pool, and returns a
         generator. This class also enables the ability chain multiple jobs after each other by passing the first job
         from the first thread pool to the next thread pool for the next job.
 
+        :param log_only_last: If True, will only the last item in the process flow will be periodically logged (provided
+            that a logger is provided)
         :param kwargs: see kwargs for the MultithreadedGeneratorBase
         """
 
@@ -540,6 +542,8 @@ class MultithreadedFlow:
 
         self._index_to_options = {}
         self._use_opts = True
+
+        self._log_only_last = log_only_last
 
         # stores the input iterable item/function iterator to consume and its arguments
         self._fn = None
@@ -667,6 +671,8 @@ class MultithreadedFlow:
                                                                     else self._index_to_options[i]))
             if num_of_fns == 1:
                 multithreaded_generator._hide_fid = True
+            elif self._log_only_last and i != num_of_fns - 1:
+                multithreaded_generator._log_periodically = False
             process_flow.append(multithreaded_generator)
             multithreaded_generator.set_consumer(consumer, i)
 

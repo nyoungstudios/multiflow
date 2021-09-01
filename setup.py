@@ -20,7 +20,7 @@ setup(
     maintainer='Nathaniel Young',
     maintainer_email='',
     url='https://github.com/nyoungstudios/multiflow',
-    license='',
+    license='MIT',
     packages=find_packages(exclude=('tests',)),
     classifiers=(
         'Intended Audience :: Developers',

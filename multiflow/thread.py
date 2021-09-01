@@ -547,7 +547,6 @@ class MultithreadedFlow:
         # raises KeyError if there are problems with the log format before lazily failing in a child thread
         log_format = self._options.get('log_format')
         if log_format:
-            # noinspection PyProtectedMember
             use_c_string(log_format, _LOG_KWARGS)
 
         self._index_to_options = {}
@@ -653,6 +652,10 @@ class MultithreadedFlow:
         additional_outputs = defaultdict(list)
 
         def consumer(index):
+            """
+            Sets the consumer of the current MultithreadedGeneratorBase to the output of the last one
+            :param index: The current function's index
+            """
             if index == 0:
                 for item in iterable:
                     # noinspection PyProtectedMember
@@ -670,6 +673,7 @@ class MultithreadedFlow:
         # builds the multithreaded process flow
         num_of_fns = len(self._fn_calls)
         for i in range(num_of_fns):
+            # sets the thread prefix
             if num_of_fns > 1 and not self._has_thread_prefix:
                 thread_prefix = 'Multiflow_{}_'.format(i)
                 if self._use_opts:
@@ -716,13 +720,16 @@ class MultithreadedFlow:
 
         index = 0
 
+        # first adds the first items
         new_flow._fn_calls.extend(self._fn_calls)
         for index in range(num_of_fns):
             new_flow._index_to_options[index] = self._options
 
+        # if the first flow has no items
         if index:
             index += 1
 
+        # then adds the second items
         new_flow._fn_calls.extend(other._fn_calls)
         for j in range(num_of_other_fns):
             new_flow._index_to_options[index + j] = other._options

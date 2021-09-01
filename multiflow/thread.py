@@ -626,14 +626,17 @@ class MultithreadedFlow:
         if not self._fn_calls:
             raise FlowException('Must add at least one consuming function')
 
+        # the iterable item to consume
+        iterable = self._fn(*self._args, **self._kwargs) if self._fn else self._iterable
+
+        if iterable is None:
+            raise FlowException('Must call consume() to consume an iterable function or iterable item.')
+
         # stores the MultithreadedGeneratorBase class instances for each step in the process flow
         process_flow = []
 
         # stores the additional job successes and exceptions that exited early by index
         additional_outputs = defaultdict(list)
-
-        # the iterable item to consume
-        iterable = self._fn(*self._args, **self._kwargs) if self._fn else self._iterable
 
         def consumer(index):
             if index == 0:

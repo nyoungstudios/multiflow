@@ -9,5 +9,8 @@ Distributed under the MIT License
 """
 __author__ = 'Nathaniel Young'
 
-from multiflow.thread import MultithreadedGeneratorBase, MultithreadedGenerator, MultithreadedFlow, JobOutput, \
+from .version import __version__
+from .thread import MultithreadedGeneratorBase, MultithreadedGenerator, MultithreadedFlow, JobOutput, \
     FlowException
+
+__all__ = ['MultithreadedGeneratorBase', 'MultithreadedGenerator', 'MultithreadedFlow', 'JobOutput', 'FlowException']

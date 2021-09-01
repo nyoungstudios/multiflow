@@ -13,7 +13,7 @@ import traceback
 from typing import Any, Callable, Generator, Iterable
 
 
-from multiflow.utils import pluralize, use_c_string
+from .utils import pluralize, use_c_string
 
 
 _LOG_KWARGS = {

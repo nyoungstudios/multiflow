@@ -1,5 +1,6 @@
 import os
 from setuptools import setup, find_packages
+from multiflow.version import __version__
 
 
 def read_content(filename):
@@ -11,7 +12,7 @@ def read_content(filename):
 
 setup(
     name='multiflow',
-    version='0.0.1',
+    version=__version__,
     description='A Python multithreading library for data processing pipelines, data streaming, etc.',
     long_description=read_content('README.md'),
     long_description_content_type='text/markdown',

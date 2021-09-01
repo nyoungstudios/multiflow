@@ -547,7 +547,7 @@ class TestFlowFlowBase(TestFlowBase):
                 logger=logger,
                 retry_count=2,
                 quiet_traceback=True,
-                log_warning=True,
+                log_retry=True,
                 log_error=True
             ) as test_exception:
                 for output in test_exception:

@@ -218,7 +218,7 @@ class MultithreadedGeneratorBase:
         logger: logging.Logger = None,
         log_interval: int = 30,
         log_periodically: bool = False,
-        log_warning: bool = False,
+        log_retry: bool = False,
         log_error: bool = False,
         log_summary: bool = False,
         log_format: str = None,
@@ -236,7 +236,7 @@ class MultithreadedGeneratorBase:
         :param logger: A logger to use for periodic logging and error messages
         :param log_interval: The time in seconds to log the periodic success and failure statuses
         :param log_periodically: If True, will log periodic success and failure status message
-        :param log_warning: If True, will log warning messages
+        :param log_retry: If True, will log retry warning messages
         :param log_error: If True, will log error messages
         :param log_summary: If True, will log the total job success and failure count after all the jobs have been
             complete
@@ -280,7 +280,7 @@ class MultithreadedGeneratorBase:
         self._logger = logger
         self._log_interval = log_interval
         self._log_periodically = log_periodically
-        self._log_warning = log_warning
+        self._log_retry = log_retry
         self._log_error = log_error
         self._log_summary = log_summary
 
@@ -478,7 +478,7 @@ class MultithreadedGeneratorBase:
 
                 # if we are going to retry this job
                 if i < self._total_count:
-                    if self._log_warning and self._logger:
+                    if self._log_retry and self._logger:
                         log_msg = 'Retrying job after catching exception: {}'.format(exception)
                         # noinspection PyProtectedMember
                         self._logger.warning(self._prepend_name_for_log(log_msg, fid, fn=flow_fn._fn))

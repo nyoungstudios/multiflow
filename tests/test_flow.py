@@ -117,7 +117,7 @@ class TestFlowFlowBase(TestFlowBase):
         except Exception as e:
             self.assertIsInstance(e, FlowException)
 
-    def test_flow_no_producing_iterator(self):
+    def test_flow_no_iterator_to_consume(self):
         try:
             with MultithreadedFlow() as flow:
                 flow.add_function(returns_item)

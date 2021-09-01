@@ -147,8 +147,8 @@ class StoppableThread(Thread):
     def stop(self):
         self._stop_flag.set()
 
-    def is_stopped(self):
-        return self._stop_flag.is_set()
+    def wait(self, interval):
+        return self._stop_flag.wait(interval)
 
 
 class JobOutput:
@@ -311,7 +311,7 @@ class MultithreadedGeneratorBase:
         consumer_thread = Thread(target=self._wrap_consumer, daemon=True, name='{}Consumer'.format(self._thread_prefix))
         if self._log_periodically and self._logger:
             # noinspection PyTypeChecker
-            self._logger_thread = StoppableThread(target=self._log_status, daemon=True,
+            self._logger_thread = StoppableThread(target=self._periodic_log_wrapper, daemon=True,
                                                   name='{}Logger'.format(self._thread_prefix))
             self._logger_thread.start()
 
@@ -342,6 +342,11 @@ class MultithreadedGeneratorBase:
             self._logger_thread.stop()
             self._logger_thread.join()
 
+        # log final summary
+        if self._log_summary:
+            for fid in self._fid_to_name:
+                self._log_status(fid)
+
     def _prepend_name_for_log(self, log_msg, fn_id, fn=None):
         name = self._fid_to_name[fn_id]
 
@@ -356,42 +361,47 @@ class MultithreadedGeneratorBase:
 
         return log_msg
 
-    def _log_status(self):
+    def _log_status(self, fid):
+        name = self._fid_to_name[fid]
+
+        # builds log kwargs
+        log_kwargs = {
+            'success': self.get_successful_job_count(fn_id=fid),
+            'failed': self.get_failed_job_count(fn_id=fid),
+            'name': name,
+            'fid': fid
+        }
+
+        log_kwargs.update({
+            's_plural': pluralize(log_kwargs['success']),
+            'f_plural': pluralize(log_kwargs['failed'])
+        })
+
+        if self._log_format:
+            # logs custom periodic log message
+            if self._use_c_str_fmt:
+                self._logger.info(self._log_format % log_kwargs)
+            else:
+                self._logger.info(self._log_format.format_map(log_kwargs))
+        else:
+            # logs default periodic log message
+            log_fmt = '{success} job{s_plural} completed successfully. {failed} job{f_plural} failed.'
+
+            self._logger.info(self._prepend_name_for_log(log_fmt.format_map(log_kwargs), fid))
+
+    def _periodic_log_wrapper(self):
         # sleeps to start so it doesn't immediately log 0 jobs completed/failed (or in other words, before it has
         # actually done any work)
-        time.sleep(self._log_interval)
+        if self._logger_thread.wait(self._log_interval):
+            return
 
         # as long as there is work still running
-        while not self._logger_thread.is_stopped():
-            for fid, name in self._fid_to_name.items():
-                name = self._fid_to_name[fid]
+        while True:
+            for fid in self._fid_to_name:
+                self._log_status(fid)
 
-                # builds log kwargs
-                log_kwargs = {
-                    'success': self.get_successful_job_count(fn_id=fid),
-                    'failed': self.get_failed_job_count(fn_id=fid),
-                    'name': name,
-                    'fid': fid
-                }
-
-                log_kwargs.update({
-                    's_plural': pluralize(log_kwargs['success']),
-                    'f_plural': pluralize(log_kwargs['failed'])
-                })
-
-                if self._log_format:
-                    # logs custom periodic log message
-                    if self._use_c_str_fmt:
-                        self._logger.info(self._log_format % log_kwargs)
-                    else:
-                        self._logger.info(self._log_format.format_map(log_kwargs))
-                else:
-                    # logs default periodic log message
-                    log_fmt = '{success} job{s_plural} completed successfully. {failed} job{f_plural} failed.'
-
-                    self._logger.info(self._prepend_name_for_log(log_fmt.format_map(log_kwargs), fid))
-
-            time.sleep(self._log_interval)
+            if self._logger_thread.wait(self._log_interval):
+                break
 
     def _producer(self):
         """
@@ -525,8 +535,8 @@ class MultithreadedFlow:
         generator. This class also enables the ability chain multiple jobs after each other by passing the first job
         from the first thread pool to the next thread pool for the next job.
 
-        :param log_only_last: If True, will only the last item in the process flow will be periodically logged (provided
-            that a logger is provided)
+        :param log_only_last: If True, will only the last item in the process flow will be periodically logged and log
+            summary (provided that a logger is provided)
         :param kwargs: see kwargs for the MultithreadedGeneratorBase
         """
 
@@ -673,6 +683,7 @@ class MultithreadedFlow:
                 multithreaded_generator._hide_fid = True
             elif self._log_only_last and i != num_of_fns - 1:
                 multithreaded_generator._log_periodically = False
+                multithreaded_generator._log_summary = False
             process_flow.append(multithreaded_generator)
             multithreaded_generator.set_consumer(consumer, i)
 

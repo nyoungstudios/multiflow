@@ -144,7 +144,7 @@ class StoppableThread(Thread):
 class JobOutput:
     def __init__(self, success: bool, attempts: int, fn_id: int = 0, result: Any = None, exception: Exception = None):
         """
-        Data class to hold the output from the MultithreadedGenerator/Multiflow
+        Data class to hold the output from the MultithreadedGenerator/Multithreadedflow
 
         :param success: If True, the job was successful; otherwise, it failed
         :param attempts: The number of attempts it ran the job
@@ -307,7 +307,8 @@ class MultithreadedGeneratorBase:
 
         producer_thread = Thread(target=self._producer, daemon=True, name='{}Producer'.format(self._thread_prefix))
         consumer_thread = Thread(target=self._wrap_consumer, daemon=True, name='{}Consumer'.format(self._thread_prefix))
-        if self._log_periodically and (self._logger or self._log_function):
+        if self._log_periodically and self._logger:
+            # noinspection PyTypeChecker
             self._logger_thread = StoppableThread(target=self._log_status, daemon=True,
                                                   name='{}Logger'.format(self._thread_prefix))
             self._logger_thread.start()

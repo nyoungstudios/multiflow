@@ -631,6 +631,32 @@ class TestFlowFlowBase(TestFlowBase):
             self.assertEqual(traceback_first_line, lines[1])
             self.assertIn(exception_str, lines[-1])
 
+    def test_log_summary(self):
+        log_name = 'test'
+        logger = get_logger(log_name)
+
+        expected_count = 25
+
+        with self.assertLogs(logger, level=logging.INFO) as log:
+            with MultithreadedFlow(logger=logger, log_summary=True) as flow:
+                flow.consume(iterator, expected_count)
+                flow.add_function(returns_item)
+
+                for output in flow:
+                    pass
+
+                count = flow.get_successful_job_count()
+
+            self.assertEqual(expected_count, count)
+
+
+            expected_logs = [
+                'INFO:{}:{}: {} jobs completed successfully. 0 jobs failed.'
+                    .format(log_name, returns_item.__name__, expected_count)
+            ]
+
+            self.assertEqual(expected_logs, log.output)
+
     def test_print_traceback(self):
         exception_str = 'testing 1, 2, 3'
 

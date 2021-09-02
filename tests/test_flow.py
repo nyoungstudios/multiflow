@@ -858,7 +858,6 @@ class TestFlowParameterizedFlowBase(TestFlowBase):
 
 
 class TestFlowExitParameterized(TestFlowBase):
-
     @parameterized.expand([
         ('one', 1),
         ('two', 2)
@@ -868,23 +867,26 @@ class TestFlowExitParameterized(TestFlowBase):
             time.sleep(1)
             return x
 
-        expected_count = 2
+        log_name = 'test'
+        logger = get_logger(log_name)
 
+        expected_count = 2
         start = time.time()
 
-        with MultithreadedFlow(max_workers=4) as flow:
-            flow.consume(iterator, 10000)
-            for _ in range(items):
-                flow.add_function(sleep_one)
+        with self.assertLogs(logger, level=logging.INFO):
+            with MultithreadedFlow(max_workers=4, logger=logger, log_periodically=True, log_interval=1) as flow:
+                flow.consume(iterator, 10000)
+                for _ in range(items):
+                    flow.add_function(sleep_one)
 
-            for i, output in enumerate(flow):
-                if i == expected_count - 1:
-                    break
+                for i, output in enumerate(flow):
+                    if i == expected_count - 1:
+                        break
 
-            count = flow.get_successful_job_count()
+                count = flow.get_successful_job_count()
 
-        elapsed_time = time.time() - start
-        upper_time_bound = 2 + items
-        self.assertLessEqual(math.floor(elapsed_time), upper_time_bound)
+            elapsed_time = time.time() - start
+            upper_time_bound = 2 + items
+            self.assertLessEqual(math.floor(elapsed_time), upper_time_bound)
 
-        self.assertEqual(expected_count, count)
+            self.assertEqual(expected_count, count)

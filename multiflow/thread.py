@@ -606,9 +606,6 @@ class MultithreadedFlow:
         # to keep track of the order of functions to call
         self._fn_calls = []
 
-        # stores the MultithreadedGeneratorBase class instances for each step in the process flow
-        self._process_flow = []
-
         # counts
         self._success_count = 0
         self._failed_count = 0
@@ -691,6 +688,9 @@ class MultithreadedFlow:
         if iterable is None:
             raise FlowException('Must call consume() to consume an iterable function or iterable item.')
 
+        # stores the MultithreadedGeneratorBase class instances for each step in the process flow
+        process_flow = []
+
         # stores the additional job successes and exceptions that exited early by index
         additional_outputs = defaultdict(list)
 
@@ -702,13 +702,13 @@ class MultithreadedFlow:
             if index == 0:
                 for item in iterable:
                     # noinspection PyProtectedMember
-                    self._process_flow[index]._submit_job_with_fid(index, self._fn_calls[index], prev=item)
+                    process_flow[index]._submit_job_with_fid(index, self._fn_calls[index], prev=item)
             else:
-                with self._process_flow[index - 1] as prev_flow:
+                with process_flow[index - 1] as prev_flow:
                     for item in prev_flow.get_output():
                         if item.get_result() is not None:
                             # noinspection PyProtectedMember
-                            self._process_flow[index]._submit_job_with_fid(index, self._fn_calls[index],
+                            process_flow[index]._submit_job_with_fid(index, self._fn_calls[index],
                                                                      prev=item.get_result())
                         else:
                             additional_outputs[index].append(item)
@@ -731,11 +731,11 @@ class MultithreadedFlow:
             elif self._log_only_last and i != num_of_fns - 1:
                 multithreaded_generator._log_periodically = False
                 multithreaded_generator._log_summary = False
-            self._process_flow.append(multithreaded_generator)
+            process_flow.append(multithreaded_generator)
             multithreaded_generator.set_consumer(consumer, i)
 
         # yields the output from the final process flow
-        with self._process_flow[-1] as final_flow:
+        with process_flow[-1] as final_flow:
             for output in final_flow.get_output():
                 if output:
                     self._success_count += 1
@@ -785,9 +785,7 @@ class MultithreadedFlow:
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        if exc_type:
-            for flow in self._process_flow:
-                flow.__exit__(exc_type, exc_val, exc_tb)
+        pass
 
     def __iter__(self):
         yield from self.get_output()

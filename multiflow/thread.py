@@ -578,7 +578,7 @@ class MultithreadedFlow:
         generator. This class also enables the ability chain multiple jobs after each other by passing the first job
         from the first thread pool to the next thread pool for the next job.
 
-        :param log_only_last: If True, will only the last item in the process flow will be periodically logged and log
+        :param log_only_last: If True, only the last item in the process flow will be periodically logged and log
             summary (provided that a logger is provided)
         :param kwargs: see kwargs for the MultithreadedGeneratorBase
         """

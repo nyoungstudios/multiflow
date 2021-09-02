@@ -3,6 +3,8 @@
 [![tests](https://github.com/nyoungstudios/multiflow/actions/workflows/python-test.yml/badge.svg)](https://github.com/nyoungstudios/multiflow/actions/workflows/python-test.yml)
 [![codecov](https://codecov.io/gh/nyoungstudios/multiflow/branch/main/graph/badge.svg?token=9M2UZ4WJ36)](https://codecov.io/gh/nyoungstudios/multiflow)
 [![Gitpod ready](https://img.shields.io/badge/Gitpod-ready-blue?logo=gitpod)](https://gitpod.io/#https://github.com/nyoungstudios/multiflow)
+[![PyPI version shields.io](https://img.shields.io/pypi/v/multiflow.svg)](https://pypi.python.org/project/multiflow/)
+[![PyPI license](https://img.shields.io/pypi/l/multiflow.svg)](https://pypi.python.org/project/multiflow/)
 
 ## About
 `multiflow` is a Python multithreading library for data processing pipelines/workflows, streaming, etc. It extends `concurrent.futures` by allowing the input and output to be generator objects. And, it makes it easy to string together multiple thread pools together to create a multithreaded pipeline.

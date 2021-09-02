@@ -1,6 +1,6 @@
 import unittest
 
-from multiflow.utils import *
+from multiflow.utils import pluralize, use_c_string
 
 
 class TestUtils(unittest.TestCase):
@@ -12,42 +12,6 @@ class TestUtils(unittest.TestCase):
     def test_pluralize_one(self):
         result = pluralize(1)
         expected_result = ''
-        self.assertEqual(expected_result, result)
-
-    def test_count_args_one(self):
-        def test(one):
-            pass
-
-        result = count_args(test)
-        expected_result = 1
-
-        self.assertEqual(expected_result, result)
-
-    def test_count_args_one_with_kwargs(self):
-        def test(one, value=None, other=None):
-            pass
-
-        result = count_args(test)
-        expected_result = 1
-
-        self.assertEqual(expected_result, result)
-
-    def test_count_args_zero(self):
-        def test():
-            pass
-
-        result = count_args(test)
-        expected_result = 0
-
-        self.assertEqual(expected_result, result)
-
-    def test_count_args_zero_with_kwargs(self):
-        def test(value=None, other=None):
-            pass
-
-        result = count_args(test)
-        expected_result = 0
-
         self.assertEqual(expected_result, result)
 
     def test_c_type_string_format(self):

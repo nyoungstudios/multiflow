@@ -50,4 +50,4 @@ pip install multiflow
 
 
 ## Documentation
-The documentation is still a work in progress, but for the most up to date documentation, please see this [page]().
+The documentation is still a work in progress, but for the most up to date documentation, please see this [page](https://github.com/nyoungstudios/multiflow/blob/main/docs/thread.md).

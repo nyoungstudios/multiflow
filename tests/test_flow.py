@@ -1,5 +1,6 @@
 import logging
 import io
+import math
 from parameterized import parameterized
 import re
 import sys
@@ -854,3 +855,36 @@ class TestFlowParameterizedFlowBase(TestFlowBase):
 
         except Exception as e:
             self.assertIsInstance(e, KeyError)
+
+
+class TestFlowExitParameterized(TestFlowBase):
+
+    @parameterized.expand([
+        ('one', 1),
+        ('two', 2)
+    ])
+    def test_flow_exit(self, name, items):
+        def sleep_one(x):
+            time.sleep(1)
+            return x
+
+        expected_count = 2
+
+        start = time.time()
+
+        with MultithreadedFlow(max_workers=4) as flow:
+            flow.consume(iterator, 10000)
+            for _ in range(items):
+                flow.add_function(sleep_one)
+
+            for i, output in enumerate(flow):
+                if i == expected_count - 1:
+                    break
+
+            count = flow.get_successful_job_count()
+
+        elapsed_time = time.time() - start
+        upper_time_bound = 2 + items
+        self.assertLessEqual(math.floor(elapsed_time), upper_time_bound)
+
+        self.assertEqual(expected_count, count)

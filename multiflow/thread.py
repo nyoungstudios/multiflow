@@ -261,6 +261,10 @@ class MultithreadedGeneratorBase:
             max_workers=max_workers, thread_name_prefix='{}ThreadPool'.format(self._thread_prefix)
         )
 
+        # producer and consumer threads
+        self._producer_thread = None
+        self._consumer_thread = None
+
         # for automatically retrying the job
         self._sleep_seed = max(sleep_seed, 0)
         self._total_count = retry_count + 1
@@ -307,20 +311,23 @@ class MultithreadedGeneratorBase:
         if not self._consumer_fn:
             raise FlowException('Must set the consumer function')
 
-        producer_thread = Thread(target=self._producer, daemon=True, name='{}Producer'.format(self._thread_prefix))
-        consumer_thread = Thread(target=self._wrap_consumer, daemon=True, name='{}Consumer'.format(self._thread_prefix))
+        self._producer_thread = Thread(target=self._producer, daemon=True,
+                                       name='{}Producer'.format(self._thread_prefix))
+        self._consumer_thread = Thread(target=self._wrap_consumer, daemon=True,
+                                       name='{}Consumer'.format(self._thread_prefix))
         if self._log_periodically and self._logger:
             # noinspection PyTypeChecker
             self._logger_thread = StoppableThread(target=self._periodic_log_wrapper, daemon=True,
                                                   name='{}Logger'.format(self._thread_prefix))
             self._logger_thread.start()
 
-        producer_thread.start()
-        consumer_thread.start()
+        self._producer_thread.start()
+        self._consumer_thread.start()
 
         # takes items from output queue and produces generator output
         while True:
             output = self._output_queue.get()
+            self._output_queue.task_done()
 
             if not isinstance(output, _DummyItem):
                 # updates successful and failed counts
@@ -329,14 +336,12 @@ class MultithreadedGeneratorBase:
                 else:
                     self._num_of_failed_jobs[output.get_fn_id()] += 1
 
-                self._output_queue.task_done()
                 yield output
             else:
-                self._output_queue.task_done()
                 break
 
-        producer_thread.join()
-        consumer_thread.join()
+        self._producer_thread.join()
+        self._consumer_thread.join()
 
         if self._logger_thread:
             self._logger_thread.stop()
@@ -409,13 +414,12 @@ class MultithreadedGeneratorBase:
         """
         while True:
             future = self._input_queue.get()
+            self._input_queue.task_done()
 
             if not isinstance(future, _DummyItem):
                 result = future.result()
                 self._output_queue.put_nowait(result)
-                self._input_queue.task_done()
             else:
-                self._input_queue.task_done()
                 break
 
         # adds dummy item to end of the output queue so we know there are no more results
@@ -443,9 +447,13 @@ class MultithreadedGeneratorBase:
         Wraps the consumer call so that it can properly let the producer know that there are no more jobs being added
         to the thread pool
         """
-        self._consumer_fn(*self._consumer_args, **self._consumer_kwargs)
-        # adds dummy item to end of the input queue so we know there are no more jobs to do
-        self._input_queue.put_nowait(_DummyItem())
+        try:
+            self._consumer_fn(*self._consumer_args, **self._consumer_kwargs)
+            # adds dummy item to end of the input queue so we know there are no more jobs to do
+            self._input_queue.put_nowait(_DummyItem())
+        except RuntimeError:
+            # catch RuntimeError, if it tries to schedule a new future after shutting down
+            pass
 
     def submit_job(self, fn, *args, **kwargs):
         """
@@ -504,6 +512,41 @@ class MultithreadedGeneratorBase:
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_type:
+            # shutdowns executor
+            self._executor.shutdown(wait=False)
+
+            # cancels unfinished tasks
+            with self._input_queue.mutex:
+                while len(self._input_queue.queue):
+                    future = self._input_queue.queue.popleft()
+                    if not isinstance(future, _DummyItem):
+                        future.cancel()
+                    self._input_queue.unfinished_tasks -= 1
+                self._input_queue.all_tasks_done.notify_all()
+                self._input_queue.unfinished_tasks = 0
+
+            self._input_queue.put_nowait(_DummyItem())
+
+            # also clears output
+            with self._output_queue.mutex:
+                self._output_queue.queue.clear()
+                self._output_queue.all_tasks_done.notify_all()
+                self._output_queue.unfinished_tasks = 0
+
+            self._output_queue.put_nowait(_DummyItem())
+
+            # stops logger thread
+            if self._logger_thread:
+                self._logger_thread.stop()
+                self._logger_thread.join()
+
+            if self._producer_thread:
+                self._producer_thread.join()
+
+            if self._consumer_thread:
+                self._consumer_thread.join()
+
         self._executor.__exit__(exc_type, exc_val, exc_tb)
 
     def __iter__(self):
@@ -562,6 +605,9 @@ class MultithreadedFlow:
 
         # to keep track of the order of functions to call
         self._fn_calls = []
+
+        # stores the MultithreadedGeneratorBase class instances for each step in the process flow
+        self._process_flow = []
 
         # counts
         self._success_count = 0
@@ -645,9 +691,6 @@ class MultithreadedFlow:
         if iterable is None:
             raise FlowException('Must call consume() to consume an iterable function or iterable item.')
 
-        # stores the MultithreadedGeneratorBase class instances for each step in the process flow
-        process_flow = []
-
         # stores the additional job successes and exceptions that exited early by index
         additional_outputs = defaultdict(list)
 
@@ -659,13 +702,13 @@ class MultithreadedFlow:
             if index == 0:
                 for item in iterable:
                     # noinspection PyProtectedMember
-                    process_flow[index]._submit_job_with_fid(index, self._fn_calls[index], prev=item)
+                    self._process_flow[index]._submit_job_with_fid(index, self._fn_calls[index], prev=item)
             else:
-                with process_flow[index - 1] as prev_flow:
+                with self._process_flow[index - 1] as prev_flow:
                     for item in prev_flow.get_output():
                         if item.get_result() is not None:
                             # noinspection PyProtectedMember
-                            process_flow[index]._submit_job_with_fid(index, self._fn_calls[index],
+                            self._process_flow[index]._submit_job_with_fid(index, self._fn_calls[index],
                                                                      prev=item.get_result())
                         else:
                             additional_outputs[index].append(item)
@@ -688,11 +731,11 @@ class MultithreadedFlow:
             elif self._log_only_last and i != num_of_fns - 1:
                 multithreaded_generator._log_periodically = False
                 multithreaded_generator._log_summary = False
-            process_flow.append(multithreaded_generator)
+            self._process_flow.append(multithreaded_generator)
             multithreaded_generator.set_consumer(consumer, i)
 
         # yields the output from the final process flow
-        with process_flow[-1] as final_flow:
+        with self._process_flow[-1] as final_flow:
             for output in final_flow.get_output():
                 if output:
                     self._success_count += 1
@@ -742,7 +785,9 @@ class MultithreadedFlow:
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        pass
+        if exc_type:
+            for flow in self._process_flow:
+                flow.__exit__(exc_type, exc_val, exc_tb)
 
     def __iter__(self):
         yield from self.get_output()

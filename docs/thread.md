@@ -9,7 +9,7 @@ with MultithreadedFlow(
     max_workers = None,
     retry_count = 0,
     sleep_seed = 1,
-    quiet_traceback= False,
+    quiet_traceback = False,
     logger = None,
     log_interval = 30,
     log_periodically = False,
@@ -135,6 +135,32 @@ with flow:
     for output in flow:
         pass
 
+```
+
+## Logging
+All three classes support logging, and as mentioned above, you can pass a `log_format` for the periodic logger to use. The `log_format` supports both C style formatting (with %) and the newer Pythonic curly bracket formatting. Here are all of  the keys that you can use in the periodic log formatter.
+```python
+{
+    'success': 0,       # the number of successfully completed jobs
+    'failed': 0,        # the number of failed jobs
+    's_plural': 's',    # "" if success is 1, "s" otherwise. For proper pluralization of noun
+    'f_plural': 's',    # "" if failed is 1, "s" otherwise. For proper pluralization of noun
+    'name': 'fn',       # the name of the function or custom name passed when calling add_function in MultithreadedFlow
+    'fid': 0            # the function id (zero index number in the process flow) when using MultithreadedFlow
+}
+```
+
+How to use?
+```python
+# C style formatting
+log_fmt = '%(success)s job%(s_plural)s completed successfully. %(failed)s job%(f_plural)s failed.'
+with MultithreadedFlow(log_format=log_fmt, logger=logger, log_periodically=True) as flow:
+    ...
+
+# Python style formatting
+log_fmt = '{success} job{s_plural} completed successfully. {failed} job{f_plural} failed.'
+with MultithreadedFlow(log_format=log_fmt, logger=logger, log_periodically=True) as flow:
+    ...
 ```
 
 ## Special features

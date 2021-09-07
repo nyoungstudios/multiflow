@@ -16,6 +16,7 @@ with MultithreadedFlow(
     log_retry = False,
     log_error = False,
     log_summary = False,
+    log_all = False,
     log_format = None,
     thread_prefix = None
 ) as flow:
@@ -31,6 +32,7 @@ with MultithreadedFlow(
 * `log_retry` - If True, will log retry warning messages
 * `log_error` - If True, will log error messages
 * `log_summary` - If True, will log the total job success and failure count after all the jobs have been complete
+* `log_all`: If True, it is the equivalent of setting `log_periodically`, `log_retry`, `log_error`, and `log_summary` to true
 * `log_format` - The periodic log string format
 * `thread_prefix` - The prefix of the thread names. Defaults to "Multiflow"
 
@@ -44,6 +46,7 @@ All there classes return an instance pf `JobOutput`. Here are the functions of t
 * `get_fn_id()` - The function id (only really used for the `MultithreadedFlow` for the index of the function added to the process flow)
 * `get_result()` - The result of the job
 * `get_exception()` - The exception if not successful
+* `get()` - gets the value of the kwarg passed into the function
 
 In order to start the thread pool to do the work and get the output generator, call the `get_output()` function.
 ```python

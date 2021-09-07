@@ -839,7 +839,7 @@ class TestFlowFlowBase(TestFlowBase):
             flow.add_function(add_n, n=5)
 
             for output in flow:
-                self.assertEqual(5, output.get('n'))
+                self.assertEqual(5, getattr(output, 'n'))
                 self.assertEqual(output[0] + 5, output.get_result())
 
             count = flow.get_successful_job_count()

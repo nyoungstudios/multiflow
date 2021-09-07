@@ -111,7 +111,7 @@ class FlowFunction:
         """
         Handles exception thrown by running the function
 
-        :param exception: the
+        :param exception: the exception that was raised from _run
         :param prev: return value from previous function in process flow
         :return: a tuple with the first item as the new exception if it failed or the return value of the error
             handling function. And the second item is the exc info for capturing the traceback of the exception
@@ -221,6 +221,7 @@ class MultithreadedGeneratorBase:
         log_retry: bool = False,
         log_error: bool = False,
         log_summary: bool = False,
+        log_all: bool = False,
         log_format: str = None,
         thread_prefix: str = None
     ):
@@ -240,6 +241,8 @@ class MultithreadedGeneratorBase:
         :param log_error: If True, will log error messages
         :param log_summary: If True, will log the total job success and failure count after all the jobs have been
             complete
+        :param log_all: If True, it is the equivalent of setting log_periodically, log_retry, log_error, and log_summary
+            to true
         :param log_format: The periodic log string format
         :param thread_prefix: The prefix of the thread names. Defaults to "Multiflow"
         """
@@ -283,10 +286,10 @@ class MultithreadedGeneratorBase:
         self._logger_thread = None
         self._logger = logger
         self._log_interval = log_interval
-        self._log_periodically = log_periodically
-        self._log_retry = log_retry
-        self._log_error = log_error
-        self._log_summary = log_summary
+        self._log_periodically = log_periodically or log_all
+        self._log_retry = log_retry or log_all
+        self._log_error = log_error or log_all
+        self._log_summary = log_summary or log_all
 
         self._log_format = log_format
         if self._log_format:

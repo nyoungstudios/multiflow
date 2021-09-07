@@ -13,6 +13,9 @@ from multiflow import MultithreadedGeneratorBase, MultithreadedGenerator, Multit
 from tests.setup_logger import get_logger
 
 
+PERIODIC_LOG_REGEX = r'^ \d+ job[s]? completed successfully\. \d+ job[s]? failed\.$'
+
+
 def iterator(num):
     for i in range(num):
         yield i
@@ -658,6 +661,79 @@ class TestFlowFlowBase(TestFlowBase):
 
             self.assertEqual(expected_logs, log.output)
 
+    def test_log_all(self):
+        log_name = 'test'
+        logger = get_logger(log_name)
+
+        def sleeper(x):
+            time.sleep(1)
+            if x == 4:
+                raise CustomException('failed')
+            return x
+
+        expected_success = 24
+        expected_failed = 1
+        expected_count = expected_success + expected_failed
+        with self.assertLogs(logger, level=logging.INFO) as log:
+            with MultithreadedFlow(
+                max_workers=4,
+                logger=logger,
+                log_interval=1,
+                retry_count=1,
+                log_all=True,
+                quiet_traceback=True
+            ) as flow:
+                flow.consume(iterator, expected_count)
+                flow.add_function(sleeper)
+
+                for output in flow:
+                    pass
+
+                success_count = flow.get_successful_job_count()
+                failed_count = flow.get_failed_job_count()
+
+            has_one_periodic = False
+            has_one_warning = False
+            has_one_error = False
+
+            expected_warning_log = 'WARNING:{}:{}: Retrying job after catching exception: failed'.format(
+                log_name, sleeper.__name__
+            )
+
+            expected_error_log = 'ERROR:{}:{}: Job failed with exception: failed'.format(
+                log_name, sleeper.__name__
+            )
+
+            log_regex = re.compile(PERIODIC_LOG_REGEX)
+
+            for log_msg in log.output[:-1]:
+                if log_msg == expected_warning_log:
+                    has_one_warning = True
+                elif log_msg == expected_error_log:
+                    has_one_error = True
+                else:
+                    log_parts = log_msg.split(':')
+                    has_one_periodic = True
+                    self.assertEqual('INFO', log_parts[0])
+                    self.assertEqual(log_name, log_parts[1])
+                    self.assertEqual(sleeper.__name__, log_parts[2])
+                    self.assertIsNotNone(log_regex.match(log_parts[3]), log_parts[3])
+
+
+            expected_summary_log = 'INFO:{}:{}: {} jobs completed successfully. {} job failed.'.format(
+                log_name, sleeper.__name__, expected_success, expected_failed
+            )
+
+            self.assertEqual(expected_summary_log, log.output[-1])
+
+            self.assertTrue(has_one_periodic)
+            self.assertTrue(has_one_warning)
+            self.assertTrue(has_one_error)
+
+
+            self.assertEqual(expected_success, success_count)
+            self.assertEqual(expected_failed, failed_count)
+
     def test_print_traceback(self):
         exception_str = 'testing 1, 2, 3'
 
@@ -766,7 +842,7 @@ class TestFlowParameterizedFlowBase(TestFlowBase):
         log_name = 'test'
         logger = get_logger(log_name)
 
-        log_regex = re.compile(r'^ \d+ job[s]? completed successfully\. \d+ job[s]? failed\.$')
+        log_regex = re.compile(PERIODIC_LOG_REGEX)
 
         expected_count = 15
 
@@ -800,7 +876,7 @@ class TestFlowParameterizedFlowBase(TestFlowBase):
                     self.assertEqual('fn1 (0)', log_parts[2])
                 else:
                     self.assertEqual('fn2 (1)', log_parts[2])
-                self.assertIsNotNone(log_regex.match(log_parts[3]), log_parts[2])
+                self.assertIsNotNone(log_regex.match(log_parts[3]), log_parts[3])
 
     @parameterized.expand([
         ('format_map', '{name}-{fid}. Abc {success} job{s_plural} so far. Xyz {failed} job{f_plural} so far.'),

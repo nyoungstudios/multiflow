@@ -832,6 +832,48 @@ class TestFlowFlowBase(TestFlowBase):
                 else:
                     self.assertEqual(3, output.get_num_of_attempts())
 
+    def test_flow_job_output_args_and_kwargs(self):
+        expected_count = 10
+        with MultithreadedFlow() as flow:
+            flow.consume(iterator, expected_count)
+            flow.add_function(add_n, n=5)
+
+            for output in flow:
+                self.assertEqual(5, output.get('n'))
+                self.assertEqual(output[0] + 5, output.get_result())
+
+            count = flow.get_successful_job_count()
+
+        self.assertEqual(expected_count, count)
+
+    def test_flow_job_output_args_and_kwargs_failed(self):
+        def even_throw_exception_and_add(value, n=0):
+            if value % 2 == 0:
+                raise CustomException('Failed because it is an even number|{}'.format(value))
+            else:
+                return value + n
+
+        expected_success = 5
+        expected_failed = 5
+        expected_count = expected_success + expected_failed
+        with MultithreadedFlow(quiet_traceback=True) as flow:
+            flow.consume(iterator, expected_count)
+            flow.add_function(even_throw_exception_and_add, n=5)
+
+            for output in flow:
+                self.assertEqual(5, output.get('n'))
+                if output[0] % 2 == 0:
+                    self.assertFalse(output)
+                else:
+                    self.assertTrue(output)
+                    self.assertEqual(output[0] + 5, output.get_result())
+
+            success_count = flow.get_successful_job_count()
+            failed_count = flow.get_failed_job_count()
+
+        self.assertEqual(expected_success, success_count)
+        self.assertEqual(expected_failed, failed_count)
+
 
 class TestFlowParameterizedFlowBase(TestFlowBase):
     @parameterized.expand([

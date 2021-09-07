@@ -81,31 +81,30 @@ class FlowFunction:
         self._expand = True
         return self
 
-    def _calc_args(self, prev):
+    def _calc_args_and_kwargs(self, prev=None):
         """
-        Calculates args and additional kwargs to pass to function. Extra parentheses in return tuple is for <= 3.7
-        Python support
+        Calculates args and kwargs to pass to function. Extra parentheses in return tuple is for <= 3.7 Python support
 
         :param prev: return value from previous function in process flow
         :return: A tuple with the first item as the args and the second as the additional kwargs
         """
         if prev is None:
             # noinspection PyRedundantParentheses
-            return (self._args, {})
+            return (self._args, self._kwargs)
         else:
             if self._expand and isinstance(prev, tuple):
                 if isinstance(prev[-1], dict):
                     # noinspection PyRedundantParentheses
-                    return ((*prev[:-1], *self._args), prev[-1])
+                    return ((*prev[:-1], *self._args), {**prev[-1], **self._kwargs})
                 else:
                     # noinspection PyRedundantParentheses
-                    return ((*prev, *self._args), {})
+                    return ((*prev, *self._args), self._kwargs)
             elif self._expand and isinstance(prev, dict):
                 # noinspection PyRedundantParentheses
-                return ((), prev)
+                return ((), {**prev, **self._kwargs})
             else:
                 # noinspection PyRedundantParentheses
-                return ((prev, *self._args), {})
+                return ((prev, *self._args), self._kwargs)
 
     def _handle(self, exception: Exception, prev=None):
         """
@@ -118,22 +117,21 @@ class FlowFunction:
         """
         if self._handler:
             try:
-                args, additional_kwargs = self._calc_args(prev)
-                return self._handler(exception, *args, **additional_kwargs, **self._kwargs), None
+                args, kwargs = self._calc_args_and_kwargs(prev=prev)
+                return self._handler(exception, *args, **kwargs), None
             except Exception as e:
                 return e, sys.exc_info()
         else:
             return exception, sys.exc_info()
 
-    def _run(self, prev=None):
+    def _run(self, *args, **kwargs):
         """
         Runs the function
 
         :param prev: return value from previous function in process flow
         :return: the return value of the function
         """
-        args, additional_kwargs = self._calc_args(prev)
-        return self._fn(*args, **additional_kwargs, **self._kwargs)
+        return self._fn(*args, **kwargs)
 
 
 class StoppableThread(Thread):
@@ -152,7 +150,16 @@ class StoppableThread(Thread):
 
 
 class JobOutput:
-    def __init__(self, success: bool, attempts: int, fn_id: int = 0, result: Any = None, exception: Exception = None):
+    def __init__(
+        self,
+        success: bool,
+        attempts: int,
+        fn_id: int = 0,
+        result: Any = None,
+        exception: Exception = None,
+        args: tuple = None,
+        kwargs: dict = None
+    ):
         """
         Data class to hold the output from the MultithreadedGenerator/Multithreadedflow
 
@@ -161,12 +168,17 @@ class JobOutput:
         :param fn_id: The function id
         :param result: If successful, the output of the job run
         :param exception: If not successful, the exception caught
+        :param args: The args passed to the function that was run
+        :param kwargs: The kwargs passed to the function that was run
         """
         self._success = success
         self._attempts = attempts
         self._fn_id = fn_id
         self._result = result
         self._exception = exception
+
+        self._args = args if args else ()
+        self._kwargs = kwargs if kwargs else {}
 
     def is_successful(self) -> bool:
         """
@@ -198,8 +210,23 @@ class JobOutput:
         """
         return self._exception
 
+    def get(self, item):
+        """
+        Get value of kwargs
+
+        :param item: kwarg key
+        :return: value of the kwarg
+        """
+        return self._kwargs.get(item)
+
     def __bool__(self):
         return self.is_successful()
+
+    def __getattr__(self, item):
+        return self.get(item)
+
+    def __getitem__(self, item):
+        return self._args[item]
 
     def __repr__(self):
         return repr(self.get_result())
@@ -477,15 +504,18 @@ class MultithreadedGeneratorBase:
         """
         exception = None
         exec_info = None
+        # noinspection PyProtectedMember
+        args, kwargs = flow_fn._calc_args_and_kwargs(prev=prev)
         for i in range(1, self._total_count + 1):
             try:
                 # noinspection PyProtectedMember
-                return JobOutput(success=True, attempts=i, fn_id=fid, result=flow_fn._run(prev=prev))
+                return JobOutput(success=True, attempts=i, fn_id=fid, result=flow_fn._run(*args, **kwargs), args=args,
+                                 kwargs=kwargs)
             except Exception as e:
                 # noinspection PyProtectedMember
                 exception, exec_info = flow_fn._handle(e, prev=prev)
                 if not exec_info:
-                    return JobOutput(success=True, attempts=i, fn_id=fid, result=exception)
+                    return JobOutput(success=True, attempts=i, fn_id=fid, result=exception, args=args, kwargs=kwargs)
 
                 # if we are going to retry this job
                 if i < self._total_count:
@@ -509,7 +539,8 @@ class MultithreadedGeneratorBase:
         elif not self._logger and not self._quiet_traceback:
             traceback.print_exception(exception, *exec_info[-2:])
 
-        return JobOutput(success=False, attempts=self._total_count, fn_id=fid, exception=exception)
+        return JobOutput(success=False, attempts=self._total_count, fn_id=fid, exception=exception, args=args,
+                         kwargs=kwargs)
 
     def __enter__(self):
         return self

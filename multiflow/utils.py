@@ -1,6 +1,7 @@
 """
 Util functions
 """
+import inspect
 
 
 def pluralize(count: int) -> str:
@@ -30,3 +31,18 @@ def use_c_string(str_format: str, items: dict):
         return False
     else:
         return True
+
+
+def find_arg_names(fn):
+    """
+    Creates a dictionary mapping of the argument name to its index of a function
+
+    :param fn: a callable function
+    :return: Dictionary of the argument name to index of the argument
+    """
+    arg_to_index = {}
+    for i, (name, value) in enumerate(inspect.signature(fn).parameters.items()):
+        if value.default is value.empty:
+            arg_to_index[name] = i
+
+    return arg_to_index

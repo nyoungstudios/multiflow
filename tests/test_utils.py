@@ -1,6 +1,6 @@
 import unittest
 
-from multiflow.utils import pluralize, use_c_string, find_arg_names
+from multiflow.utils import find_arg_names, pluralize, use_c_string
 
 
 class TestUtils(unittest.TestCase):

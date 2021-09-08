@@ -13,7 +13,7 @@ import traceback
 from typing import Any, Callable, Generator, Iterable
 
 
-from .utils import pluralize, use_c_string
+from .utils import find_arg_names, pluralize, use_c_string
 
 
 _LOG_KWARGS = {
@@ -55,6 +55,8 @@ class FlowFunction:
         self._fn = fn
         self._args = args
         self._kwargs = kwargs
+
+        self._arg_to_index = find_arg_names(self._fn)
 
         self._handler = None
         self._expand = False
@@ -158,7 +160,8 @@ class JobOutput:
         result: Any = None,
         exception: Exception = None,
         args: tuple = None,
-        kwargs: dict = None
+        kwargs: dict = None,
+        arg_to_index: dict = None
     ):
         """
         Data class to hold the output from the MultithreadedGenerator/Multithreadedflow
@@ -170,6 +173,7 @@ class JobOutput:
         :param exception: If not successful, the exception caught
         :param args: The args passed to the function that was run
         :param kwargs: The kwargs passed to the function that was run
+        :param arg_to_index: A dictionary mapping of the argument names to its index in the function
         """
         self._success = success
         self._attempts = attempts
@@ -179,6 +183,7 @@ class JobOutput:
 
         self._args = args if args else ()
         self._kwargs = kwargs if kwargs else {}
+        self._arg_to_index = arg_to_index if arg_to_index else {}
 
     def is_successful(self) -> bool:
         """
@@ -217,7 +222,12 @@ class JobOutput:
         :param item: kwarg key
         :return: value of the kwarg
         """
-        return self._kwargs.get(item)
+        if item in self._kwargs:
+            return self._kwargs[item]
+        elif item in self._arg_to_index:
+            return self._args[self._arg_to_index[item]]
+        else:
+            return None
 
     def __bool__(self):
         return self.is_successful()
@@ -510,12 +520,14 @@ class MultithreadedGeneratorBase:
             try:
                 # noinspection PyProtectedMember
                 return JobOutput(success=True, attempts=i, fn_id=fid, result=flow_fn._run(*args, **kwargs), args=args,
-                                 kwargs=kwargs)
+                                 kwargs=kwargs, arg_to_index=flow_fn._arg_to_index)
             except Exception as e:
                 # noinspection PyProtectedMember
                 exception, exec_info = flow_fn._handle(e, prev=prev)
                 if not exec_info:
-                    return JobOutput(success=True, attempts=i, fn_id=fid, result=exception, args=args, kwargs=kwargs)
+                    # noinspection PyProtectedMember
+                    return JobOutput(success=True, attempts=i, fn_id=fid, result=exception, args=args, kwargs=kwargs,
+                                     arg_to_index=flow_fn._arg_to_index)
 
                 # if we are going to retry this job
                 if i < self._total_count:
@@ -539,8 +551,9 @@ class MultithreadedGeneratorBase:
         elif not self._logger and not self._quiet_traceback:
             traceback.print_exception(exception, *exec_info[-2:])
 
+        # noinspection PyProtectedMember
         return JobOutput(success=False, attempts=self._total_count, fn_id=fid, exception=exception, args=args,
-                         kwargs=kwargs)
+                         kwargs=kwargs, arg_to_index=flow_fn._arg_to_index)
 
     def __enter__(self):
         return self

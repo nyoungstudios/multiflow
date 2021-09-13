@@ -42,7 +42,6 @@ def find_arg_names(fn):
     """
     arg_to_index = {}
     for i, (name, value) in enumerate(inspect.signature(fn).parameters.items()):
-        if value.default is value.empty:
-            arg_to_index[name] = i
+        arg_to_index[name] = i
 
     return arg_to_index

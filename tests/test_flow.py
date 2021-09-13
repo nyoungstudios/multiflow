@@ -873,6 +873,23 @@ class TestFlowFlowBase(TestFlowBase):
 
         self.assertEqual(expected_count, count)
 
+    def test_flow_job_output_kwargs_as_args(self):
+        def do_nothing(x=0):
+            return x
+
+        expected_count = 10
+        with MultithreadedFlow() as flow:
+            flow.consume(iterator, expected_count)
+            flow.add_function(do_nothing)
+
+            for output in flow:
+                self.assertEqual(output[0], output.get_result())
+                self.assertEqual(output.get('x'), output.get_result())
+
+            count = flow.get_successful_job_count()
+
+        self.assertEqual(expected_count, count)
+
     def test_flow_job_output_args_and_kwargs_failed(self):
         def even_throw_exception_and_add(value, n=0):
             if value % 2 == 0:

@@ -32,7 +32,7 @@ class TestUtils(unittest.TestCase):
 
         arg_to_index = find_arg_names(fn)
 
-        expected_output = {'a': 0, 'b': 1}
+        expected_output = {'a': 0, 'b': 1, 'c': 2}
 
         self.assertDictEqual(expected_output, arg_to_index)
 
@@ -42,6 +42,6 @@ class TestUtils(unittest.TestCase):
 
         arg_to_index = find_arg_names(fn)
 
-        expected_output = {}
+        expected_output = {'a': 0, 'b': 1, 'c': 2}
 
         self.assertDictEqual(expected_output, arg_to_index)

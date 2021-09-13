@@ -349,7 +349,7 @@ class MultithreadedGeneratorBase:
         :return: each item in the generator object is an instance of JobOutput
         """
         if not self._consumer_fn:
-            raise FlowException('Must set the consumer function')
+            raise FlowException('Must set the consumer function.')
 
         self._producer_thread = Thread(target=self._producer, daemon=True,
                                        name='{}Producer'.format(self._thread_prefix))
@@ -673,7 +673,7 @@ class MultithreadedFlow:
         elif isinstance(args[0], Iterable):
             self._iterable = args[0]
         else:
-            raise FlowException('First item must be an iterable item or function returning an iterator')
+            raise FlowException('First item must be an iterable item or function returning an iterator.')
 
         self._args = args[1:]
         self._kwargs = kwargs
@@ -727,13 +727,16 @@ class MultithreadedFlow:
 
     def get_output(self) -> Generator[JobOutput, None, None]:
         if not self._fn_calls:
-            raise FlowException('Must add at least one consuming function')
+            raise FlowException('Must add at least one consuming function.')
 
         # the iterable item to consume
+        if self._fn is None and self._iterable is None:
+            raise FlowException('Must call consume() to consume an iterable function or iterable item.')
+
         iterable = self._fn(*self._args, **self._kwargs) if self._fn else self._iterable
 
         if iterable is None:
-            raise FlowException('Must call consume() to consume an iterable function or iterable item.')
+            raise FlowException('Function does not return or yield anything.')
 
         # stores the MultithreadedGeneratorBase class instances for each step in the process flow
         process_flow = []

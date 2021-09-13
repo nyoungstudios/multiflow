@@ -89,6 +89,24 @@ class TestFlowFlowBase(TestFlowBase):
             self.fail('Did not throw an exception')
         except Exception as e:
             self.assertIsInstance(e, FlowException)
+            self.assertEqual('Must provide a function or iterable item to consume.', str(e))
+
+    def test_flow_no_return_fn_to_consume(self):
+        def nothing():
+            pass
+
+        try:
+            with MultithreadedFlow() as flow:
+                flow.consume(nothing)
+                flow.add_function(add_one)
+
+                for output in flow:
+                    pass
+
+            self.fail('Did not throw an exception')
+        except Exception as e:
+            self.assertIsInstance(e, FlowException)
+            self.assertEqual('Function does not return or yield anything.', str(e))
 
     def test_flow_no_input_or_consuming_fn(self):
         try:
@@ -98,6 +116,7 @@ class TestFlowFlowBase(TestFlowBase):
             self.fail('Did not throw an exception')
         except Exception as e:
             self.assertIsInstance(e, FlowException)
+            self.assertEqual('Must add at least one consuming function.', str(e))
 
     def test_no_consumer_base(self):
         try:
@@ -107,6 +126,7 @@ class TestFlowFlowBase(TestFlowBase):
             self.fail('Did not throw an exception')
         except Exception as e:
             self.assertIsInstance(e, FlowException)
+            self.assertEqual('Must set the consumer function.', str(e))
 
     def test_not_iterable(self):
         try:
@@ -120,6 +140,7 @@ class TestFlowFlowBase(TestFlowBase):
                 self.fail('Did not throw an exception')
         except Exception as e:
             self.assertIsInstance(e, FlowException)
+            self.assertEqual('First item must be an iterable item or function returning an iterator.', str(e))
 
     def test_flow_no_iterator_to_consume(self):
         try:
@@ -132,6 +153,7 @@ class TestFlowFlowBase(TestFlowBase):
             self.fail('Did not throw an exception')
         except Exception as e:
             self.assertIsInstance(e, FlowException)
+            self.assertEqual('Must call consume() to consume an iterable function or iterable item.', str(e))
 
     def test_zero_items(self):
         logger = get_logger('test')
@@ -202,6 +224,7 @@ class TestFlowFlowBase(TestFlowBase):
             self.fail('Did not throw an exception')
         except Exception as e:
             self.assertIsInstance(e, FlowException)
+            self.assertEqual('Must provide a function to add to the process flow.', str(e))
 
     def test_no_function_arguments_with_name(self):
         try:
@@ -213,6 +236,7 @@ class TestFlowFlowBase(TestFlowBase):
             self.fail('Did not throw an exception')
         except Exception as e:
             self.assertIsInstance(e, FlowException)
+            self.assertEqual('If the first argument is of type string, must provide a second argument that is a callable function.', str(e))
 
     def test_add_wrong_type_function(self):
         try:
@@ -224,6 +248,7 @@ class TestFlowFlowBase(TestFlowBase):
             self.fail('Did not throw an exception')
         except Exception as e:
             self.assertIsInstance(e, FlowException)
+            self.assertTrue(str(e).startswith('The first argument must be a string or callable function, not of type '))
 
     def test_add_wrong_type_function_with_name(self):
         try:
@@ -235,6 +260,7 @@ class TestFlowFlowBase(TestFlowBase):
             self.fail('Did not throw an exception')
         except Exception as e:
             self.assertIsInstance(e, FlowException)
+            self.assertEqual('If first argument is of type string, the second argument must be a callable function.', str(e))
 
     def test_flow_two_functions_callable(self):
         expected_count = 5

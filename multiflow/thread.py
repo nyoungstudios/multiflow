@@ -16,6 +16,7 @@ from typing import Any, Callable, Generator, Iterable
 from .utils import find_arg_names, pluralize, use_c_string
 
 
+# perioidic log kwargs
 _LOG_KWARGS = {
     'success': 0,
     'failed': 0,
@@ -56,10 +57,11 @@ class FlowFunction:
         self._args = args
         self._kwargs = kwargs
 
-        self._arg_to_index = find_arg_names(self._fn)
+        self._arg_to_index, self._kwarg_index, self._kwarg_to_default = find_arg_names(self._fn)
 
         self._handler = None
         self._expand = False
+        self._parent = False
 
     def error_handler(self, fn: Callable):
         """
@@ -83,6 +85,13 @@ class FlowFunction:
         self._expand = True
         return self
 
+    def pass_parent(self):
+        """
+        Passes matching args and kwargs from previous function to this function as kwargs
+        """
+        self._parent = True
+        return self
+
     def _calc_args_and_kwargs(self, prev=None):
         """
         Calculates args and kwargs to pass to function. Extra parentheses in return tuple is for <= 3.7 Python support
@@ -94,19 +103,31 @@ class FlowFunction:
             # noinspection PyRedundantParentheses
             return (self._args, self._kwargs)
         else:
-            if self._expand and isinstance(prev, tuple):
-                if isinstance(prev[-1], dict):
+            extra_kwargs = {}
+            if isinstance(prev, JobOutput):
+                result = prev.get_result()
+                if self._parent:
+                    for arg, i in self._arg_to_index.items():
+                        if i >= self._kwarg_index and arg not in self._kwargs:
+                            value = prev.get(arg)
+                            if value is not None:
+                                extra_kwargs[arg] = value
+            else:
+                result = prev
+
+            if self._expand and isinstance(result, tuple):
+                if isinstance(result[-1], dict):
                     # noinspection PyRedundantParentheses
-                    return ((*prev[:-1], *self._args), {**prev[-1], **self._kwargs})
+                    return ((*result[:-1], *self._args), {**result[-1], **self._kwargs, **extra_kwargs})
                 else:
                     # noinspection PyRedundantParentheses
-                    return ((*prev, *self._args), self._kwargs)
-            elif self._expand and isinstance(prev, dict):
+                    return ((*result, *self._args), {**self._kwargs, **extra_kwargs})
+            elif self._expand and isinstance(result, dict):
                 # noinspection PyRedundantParentheses
-                return ((), {**prev, **self._kwargs})
+                return ((), {**result, **self._kwargs, **extra_kwargs})
             else:
                 # noinspection PyRedundantParentheses
-                return ((prev, *self._args), self._kwargs)
+                return ((result, *self._args), {**self._kwargs, **extra_kwargs})
 
     def _handle(self, exception: Exception, prev=None):
         """
@@ -161,7 +182,8 @@ class JobOutput:
         exception: Exception = None,
         args: tuple = None,
         kwargs: dict = None,
-        arg_to_index: dict = None
+        arg_to_index: dict = None,
+        kwarg_to_default: dict = None
     ):
         """
         Data class to hold the output from the MultithreadedGenerator/Multithreadedflow
@@ -174,6 +196,7 @@ class JobOutput:
         :param args: The args passed to the function that was run
         :param kwargs: The kwargs passed to the function that was run
         :param arg_to_index: A dictionary mapping of the argument names to its index in the function
+        :param kwarg_to_default: A dictionary mapping of the kwarg names to the default values
         """
         self._success = success
         self._attempts = attempts
@@ -182,8 +205,10 @@ class JobOutput:
         self._exception = exception
 
         self._args = args if args else ()
+        self._num_of_args = len(self._args)
         self._kwargs = kwargs if kwargs else {}
         self._arg_to_index = arg_to_index if arg_to_index else {}
+        self._kwarg_to_default = kwarg_to_default if kwarg_to_default else {}
 
     def is_successful(self) -> bool:
         """
@@ -219,13 +244,17 @@ class JobOutput:
         """
         Get value of kwargs
 
-        :param item: kwarg key
-        :return: value of the kwarg
+        :param item: arg or kwarg key
+        :return: value of the parameter
         """
         if item in self._kwargs:
             return self._kwargs[item]
         elif item in self._arg_to_index:
-            return self._args[self._arg_to_index[item]]
+            arg_index = self._arg_to_index[item]
+            if arg_index >= self._num_of_args:
+                return self._kwarg_to_default.get(item)
+            else:
+                return self._args[arg_index]
         else:
             return None
 
@@ -520,14 +549,15 @@ class MultithreadedGeneratorBase:
             try:
                 # noinspection PyProtectedMember
                 return JobOutput(success=True, attempts=i, fn_id=fid, result=flow_fn._run(*args, **kwargs), args=args,
-                                 kwargs=kwargs, arg_to_index=flow_fn._arg_to_index)
+                                 kwargs=kwargs, arg_to_index=flow_fn._arg_to_index,
+                                 kwarg_to_default=flow_fn._kwarg_to_default)
             except Exception as e:
                 # noinspection PyProtectedMember
                 exception, exec_info = flow_fn._handle(e, prev=prev)
                 if not exec_info:
                     # noinspection PyProtectedMember
                     return JobOutput(success=True, attempts=i, fn_id=fid, result=exception, args=args, kwargs=kwargs,
-                                     arg_to_index=flow_fn._arg_to_index)
+                                     arg_to_index=flow_fn._arg_to_index, kwarg_to_default=flow_fn._kwarg_to_default)
 
                 # if we are going to retry this job
                 if i < self._total_count:
@@ -553,7 +583,7 @@ class MultithreadedGeneratorBase:
 
         # noinspection PyProtectedMember
         return JobOutput(success=False, attempts=self._total_count, fn_id=fid, exception=exception, args=args,
-                         kwargs=kwargs, arg_to_index=flow_fn._arg_to_index)
+                         kwargs=kwargs, arg_to_index=flow_fn._arg_to_index, kwarg_to_default=flow_fn._kwarg_to_default)
 
     def __enter__(self):
         return self
@@ -758,8 +788,7 @@ class MultithreadedFlow:
                     for item in prev_flow.get_output():
                         if item.get_result() is not None:
                             # noinspection PyProtectedMember
-                            process_flow[index]._submit_job_with_fid(index, self._fn_calls[index],
-                                                                     prev=item.get_result())
+                            process_flow[index]._submit_job_with_fid(index, self._fn_calls[index], prev=item)
                         else:
                             additional_outputs[index].append(item)
 

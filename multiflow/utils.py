@@ -15,7 +15,7 @@ def pluralize(count: int) -> str:
     return '' if count == 1 else 's'
 
 
-def use_c_string(str_format: str, items: dict):
+def use_c_string(str_format: str, items: dict) -> bool:
     """
     Tests if we should use the C type string formatting. Otherwise, defaults to False. Meaning we should use
     format_map() instead
@@ -33,15 +33,23 @@ def use_c_string(str_format: str, items: dict):
         return True
 
 
-def find_arg_names(fn):
+def find_arg_names(fn) -> tuple:
     """
     Creates a dictionary mapping of the argument name to its index of a function
 
     :param fn: a callable function
-    :return: Dictionary of the argument name to index of the argument
+    :return: a tuple with the first item being a dictionary of the argument name to index of the argument, the second
+        argument being a integer representing the index of the first kwarg (-1 if there are no kwargs), and the third
+        argument being a dictionary mapping of the kwarg name to default value
     """
     arg_to_index = {}
+    kwargs_to_default = {}
+    kwarg_index = -1
     for i, (name, value) in enumerate(inspect.signature(fn).parameters.items()):
         arg_to_index[name] = i
+        if value.default is not value.empty:
+            kwargs_to_default[name] = value.default
+            if kwarg_index == -1:
+                kwarg_index = i
 
-    return arg_to_index
+    return arg_to_index, kwarg_index, kwargs_to_default

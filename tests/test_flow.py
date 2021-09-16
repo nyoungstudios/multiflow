@@ -919,6 +919,88 @@ class TestFlowFlowBase(TestFlowBase):
         self.assertEqual(expected_success, success_count)
         self.assertEqual(expected_failed, failed_count)
 
+    def test_flow_job_output_default_kwargs(self):
+        def default_fn(x, y=4):
+            return x
+
+        expected_count = 10
+        with MultithreadedFlow() as flow:
+            flow.consume(iterator, expected_count)
+            flow.add_function(default_fn)
+
+            for output in flow:
+                self.assertEqual(4, output.get('y'))
+                self.assertEqual(output.get_result(), output.get('x'))
+
+            success_count = flow.get_successful_job_count()
+
+        self.assertEqual(expected_count, success_count)
+
+    def test_flow_pass_parent(self):
+        def fn1(x, y=5):
+            return x
+
+        def fn2(x, y=0):
+            return x + y
+
+        expected_count = 10
+        with MultithreadedFlow() as flow:
+            flow.consume(iterator, expected_count)
+            flow.add_function(fn1)
+            flow.add_function(fn2).pass_parent()
+
+            for output in flow:
+                self.assertEqual(5, output.get('y'))
+                self.assertEqual(output.get('x') + output.get('y'), output.get_result())
+
+            success_count = flow.get_successful_job_count()
+
+        self.assertEqual(expected_count, success_count)
+
+    def test_flow_not_pass_parent(self):
+        def fn1(x, y=5):
+            return x
+
+        def fn2(x, y=0):
+            return x + y
+
+        expected_count = 10
+        with MultithreadedFlow() as flow:
+            flow.consume(iterator, expected_count)
+            flow.add_function(fn1)
+            flow.add_function(fn2)
+
+            for output in flow:
+                self.assertEqual(0, output.get('y'))
+                self.assertEqual(output.get('x') + output.get('y'), output.get_result())
+
+            success_count = flow.get_successful_job_count()
+
+        self.assertEqual(expected_count, success_count)
+
+    def test_flow_pass_parent_with_kwargs(self):
+        def fn1(x, y=5, z=7):
+            return {'x': x, 'z': 1}
+
+        def fn2(x, y=0, z=0):
+            return x * y + z
+
+        expected_count = 1
+        with MultithreadedFlow() as flow:
+            flow.consume(iterator, expected_count)
+            flow.add_function(fn1)
+            flow.add_function(fn2).pass_parent().expand_params()
+
+            for output in flow:
+                self.assertEqual(1, output.get('z'))
+                self.assertEqual(5, output.get('y'))
+                expected_out = output.get('x') * output.get('y') + output.get('z')
+                self.assertEqual(expected_out, output.get_result())
+
+            success_count = flow.get_successful_job_count()
+
+        self.assertEqual(expected_count, success_count)
+
 
 class TestFlowParameterizedFlowBase(TestFlowBase):
     @parameterized.expand([

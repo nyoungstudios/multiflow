@@ -102,31 +102,34 @@ class FlowFunction:
             # noinspection PyRedundantParentheses
             return (self._args, self._kwargs)
         else:
-            extra_kwargs = {}
-            if isinstance(prev, JobOutput):
-                result = prev.get_result()
-                if self._parent:
+            def get_extra_kwargs():
+                extra_kwargs = {}
+                if isinstance(prev, JobOutput) and self._parent:
                     for arg, i in self._arg_to_index.items():
                         if i >= self._kwarg_index and arg not in self._kwargs:
                             value = prev.get(arg)
                             if value is not None:
                                 extra_kwargs[arg] = value
+                return extra_kwargs
+
+            if isinstance(prev, JobOutput):
+                result = prev.get_result()
             else:
                 result = prev
 
             if self._expand and isinstance(result, tuple):
                 if isinstance(result[-1], dict):
                     # noinspection PyRedundantParentheses
-                    return ((*result[:-1], *self._args), {**extra_kwargs, **result[-1], **self._kwargs})
+                    return ((*result[:-1], *self._args), {**get_extra_kwargs(), **result[-1], **self._kwargs})
                 else:
                     # noinspection PyRedundantParentheses
-                    return ((*result, *self._args), {**extra_kwargs, **self._kwargs})
+                    return ((*result, *self._args), {**get_extra_kwargs(), **self._kwargs})
             elif self._expand and isinstance(result, dict):
                 # noinspection PyRedundantParentheses
-                return ((), {**extra_kwargs, **result, **self._kwargs})
+                return ((), {**get_extra_kwargs(), **result, **self._kwargs})
             else:
                 # noinspection PyRedundantParentheses
-                return ((result, *self._args), {**extra_kwargs, **self._kwargs})
+                return ((result, *self._args), {**get_extra_kwargs(), **self._kwargs})
 
     def _handle(self, exception: Exception, prev=None):
         """

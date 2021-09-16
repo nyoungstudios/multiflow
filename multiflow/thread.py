@@ -57,7 +57,9 @@ class FlowFunction:
         self._args = args
         self._kwargs = kwargs
 
-        self._arg_to_index, self._kwarg_index, self._kwarg_to_default = find_arg_names(self._fn)
+        self._num_of_args = len(self._args)
+
+        self._arg_to_index, self._kwarg_to_default = find_arg_names(self._fn)
 
         self._handler = None
         self._expand = False
@@ -102,11 +104,11 @@ class FlowFunction:
             # noinspection PyRedundantParentheses
             return (self._args, self._kwargs)
         else:
-            def get_extra_kwargs():
+            def get_extra_kwargs(args_count):
                 extra_kwargs = {}
                 if isinstance(prev, JobOutput) and self._parent:
                     for arg, i in self._arg_to_index.items():
-                        if i >= self._kwarg_index and arg not in self._kwargs:
+                        if i >= args_count and arg not in self._kwargs:
                             value = prev.get(arg)
                             if value is not None:
                                 extra_kwargs[arg] = value
@@ -119,17 +121,19 @@ class FlowFunction:
 
             if self._expand and isinstance(result, tuple):
                 if isinstance(result[-1], dict):
+                    result_args = result[:-1]
+                    num_of_args = len(result_args) + self._num_of_args
                     # noinspection PyRedundantParentheses
-                    return ((*result[:-1], *self._args), {**get_extra_kwargs(), **result[-1], **self._kwargs})
+                    return ((*result_args, *self._args), {**get_extra_kwargs(num_of_args), **result[-1], **self._kwargs})
                 else:
                     # noinspection PyRedundantParentheses
-                    return ((*result, *self._args), {**get_extra_kwargs(), **self._kwargs})
+                    return ((*result, *self._args), {**get_extra_kwargs(len(result) + self._num_of_args), **self._kwargs})
             elif self._expand and isinstance(result, dict):
                 # noinspection PyRedundantParentheses
-                return ((), {**get_extra_kwargs(), **result, **self._kwargs})
+                return ((), {**get_extra_kwargs(0), **result, **self._kwargs})
             else:
                 # noinspection PyRedundantParentheses
-                return ((result, *self._args), {**get_extra_kwargs(), **self._kwargs})
+                return ((result, *self._args), {**get_extra_kwargs(1 + self._num_of_args), **self._kwargs})
 
     def _handle(self, exception: Exception, prev=None):
         """

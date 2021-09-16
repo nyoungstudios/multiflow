@@ -1002,8 +1002,8 @@ class TestFlowFlowBase(TestFlowBase):
         self.assertEqual(expected_count, success_count)
 
     def test_flow_pass_parent_index_output(self):
-        def fn1(a, y=5):
-            return a
+        def fn1(x, y=5):
+            return x
 
         def fn2(x, y):
             return x + y

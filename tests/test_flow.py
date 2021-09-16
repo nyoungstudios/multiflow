@@ -1023,6 +1023,30 @@ class TestFlowFlowBase(TestFlowBase):
 
         self.assertEqual(expected_count, success_count)
 
+    def test_flow_index_output_expand_kwargs(self):
+        def fn1(a, b=5):
+            return {'x': a, 'y': b}
+
+        def fn2(x, y):
+            return x + y
+
+        expected_count = 10
+        with MultithreadedFlow() as flow:
+            flow.consume(iterator, expected_count)
+            flow.add_function(fn1)
+            flow.add_function(fn2).expand_params()
+
+            for output in flow:
+                self.assertEqual(5, output.get('y'))
+                self.assertEqual(5, output[1])
+                self.assertEqual(output.get('x'), output[0])
+                self.assertEqual(output.get('x') + output.get('y'), output.get_result())
+
+            success_count = flow.get_successful_job_count()
+
+        self.assertEqual(expected_count, success_count)
+
+
 class TestFlowParameterizedFlowBase(TestFlowBase):
     @parameterized.expand([
         ('log_only_last', True),

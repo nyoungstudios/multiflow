@@ -72,7 +72,6 @@ class FlowFunction:
             the job function.
         """
         self._handler = fn
-
         return self
 
     def expand_params(self):
@@ -265,6 +264,11 @@ class JobOutput:
         return self.get(item)
 
     def __getitem__(self, item):
+        if item >= self._num_of_args:
+            for k, v in self._arg_to_index.items():
+                if v == item:
+                    return self._kwargs[k]
+
         return self._args[item]
 
     def __repr__(self):

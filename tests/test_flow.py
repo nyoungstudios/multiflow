@@ -985,7 +985,7 @@ class TestFlowFlowBase(TestFlowBase):
         def fn2(x, y=0, z=0):
             return x * y + z
 
-        expected_count = 1
+        expected_count = 10
         with MultithreadedFlow() as flow:
             flow.consume(iterator, expected_count)
             flow.add_function(fn1)
@@ -1001,6 +1001,27 @@ class TestFlowFlowBase(TestFlowBase):
 
         self.assertEqual(expected_count, success_count)
 
+    def test_flow_pass_parent_index_output(self):
+        def fn1(a, y=5):
+            return a
+
+        def fn2(x, y):
+            return x + y
+
+        expected_count = 10
+        with MultithreadedFlow() as flow:
+            flow.consume(iterator, expected_count)
+            flow.add_function(fn1)
+            flow.add_function(fn2).pass_parent()
+
+            for output in flow:
+                self.assertEqual(5, output.get('y'))
+                self.assertEqual(5, output[1])
+                self.assertEqual(output.get('x') + output.get('y'), output.get_result())
+
+            success_count = flow.get_successful_job_count()
+
+        self.assertEqual(expected_count, success_count)
 
 class TestFlowParameterizedFlowBase(TestFlowBase):
     @parameterized.expand([

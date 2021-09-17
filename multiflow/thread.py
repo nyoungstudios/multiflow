@@ -705,6 +705,8 @@ class MultithreadedFlow:
         # counts
         self._success_count = 0
         self._failed_count = 0
+        self._upstream_success_count = 0
+        self._upstream_failed_count = 0
 
     def consume(self, *args, **kwargs):
         """
@@ -768,11 +770,17 @@ class MultithreadedFlow:
 
         return flow_fn
 
-    def get_successful_job_count(self) -> int:
-        return self._success_count
+    def get_successful_job_count(self, last=False) -> int:
+        if last:
+            return self._success_count
+        else:
+            return self._success_count + self._upstream_success_count
 
-    def get_failed_job_count(self) -> int:
-        return self._failed_count
+    def get_failed_job_count(self, last=False) -> int:
+        if last:
+            return self._failed_count
+        else:
+            return self._failed_count + self._upstream_failed_count
 
     def get_output(self) -> Generator[JobOutput, None, None]:
         if not self._fn_calls:
@@ -845,9 +853,9 @@ class MultithreadedFlow:
         for outputs in additional_outputs.values():
             for output in outputs:
                 if output:
-                    self._success_count += 1
+                    self._upstream_success_count += 1
                 else:
-                    self._failed_count += 1
+                    self._upstream_failed_count += 1
 
                 output._last = False
                 yield output

@@ -502,9 +502,13 @@ class TestFlowFlowBase(TestFlowBase):
 
             success_count = flow.get_successful_job_count()
             failed_count = flow.get_failed_job_count()
+            last_success_count = flow.get_successful_job_count(last=True)
+            last_failed_count = flow.get_failed_job_count(last=True)
 
         self.assertEqual(expected_success, success_count)
         self.assertEqual(expected_failed, failed_count)
+        self.assertEqual(expected_success, last_success_count)
+        self.assertEqual(expected_failed, last_failed_count)
 
     def test_flow_upstream_error(self):
         def exception_handler(exception, value):
@@ -535,9 +539,13 @@ class TestFlowFlowBase(TestFlowBase):
 
             success_count = flow.get_successful_job_count()
             failed_count = flow.get_failed_job_count()
+            last_success_count = flow.get_successful_job_count(last=True)
+            last_failed_count = flow.get_failed_job_count(last=True)
 
         self.assertEqual(7, success_count)
         self.assertEqual(1, failed_count)
+        self.assertEqual(7, last_success_count)
+        self.assertEqual(0, last_failed_count)
 
     def test_flow_upstream_branch(self):
         def exit_on_even(value):
@@ -563,9 +571,13 @@ class TestFlowFlowBase(TestFlowBase):
 
             success_count = flow.get_successful_job_count()
             failed_count = flow.get_failed_job_count()
+            last_success_count = flow.get_successful_job_count(last=True)
+            last_failed_count = flow.get_failed_job_count(last=True)
 
         self.assertEqual(8, success_count)
         self.assertEqual(0, failed_count)
+        self.assertEqual(4, last_success_count)
+        self.assertEqual(0, last_failed_count)
 
     def test_log_errors(self):
         log_name = 'test'

@@ -124,13 +124,13 @@ class FlowFunction:
                     result_args = result[:-1]
                     num_of_args = len(result_args) + self._num_of_args
                     # noinspection PyRedundantParentheses
-                    return ((*result_args, *self._args), {**get_extra_kwargs(num_of_args), **result[-1], **self._kwargs})
+                    return ((*result_args, *self._args), {**get_extra_kwargs(num_of_args), **self._kwargs, **result[-1]})
                 else:
                     # noinspection PyRedundantParentheses
                     return ((*result, *self._args), {**get_extra_kwargs(len(result) + self._num_of_args), **self._kwargs})
             elif self._expand and isinstance(result, dict):
                 # noinspection PyRedundantParentheses
-                return ((), {**get_extra_kwargs(0), **result, **self._kwargs})
+                return (self._args, {**get_extra_kwargs(0), **self._kwargs, **result})
             else:
                 # noinspection PyRedundantParentheses
                 return ((result, *self._args), {**get_extra_kwargs(1 + self._num_of_args), **self._kwargs})

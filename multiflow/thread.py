@@ -63,7 +63,7 @@ class FlowFunction:
 
         self._handler = None
         self._expand = False
-        self._parent = False
+        self._inherit = False
 
     def error_handler(self, fn: Callable):
         """
@@ -86,11 +86,11 @@ class FlowFunction:
         self._expand = True
         return self
 
-    def pass_parent(self):
+    def inherit_params(self):
         """
         Passes matching args and kwargs from previous function to this function as kwargs
         """
-        self._parent = True
+        self._inherit = True
         return self
 
     def _calc_args_and_kwargs(self, prev=None):
@@ -106,7 +106,7 @@ class FlowFunction:
         else:
             def get_extra_kwargs(args_count):
                 extra_kwargs = {}
-                if isinstance(prev, JobOutput) and self._parent:
+                if isinstance(prev, JobOutput) and self._inherit:
                     for arg, i in self._arg_to_index.items():
                         if i >= args_count and arg not in self._kwargs:
                             value = prev.get(arg)

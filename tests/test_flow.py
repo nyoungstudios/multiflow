@@ -947,7 +947,7 @@ class TestFlowFlowBase(TestFlowBase):
         with MultithreadedFlow() as flow:
             flow.consume(iterator, expected_count)
             flow.add_function(fn1)
-            flow.add_function(fn2).pass_parent()
+            flow.add_function(fn2).inherit_params()
 
             for output in flow:
                 self.assertEqual(5, output.get('y'))
@@ -989,7 +989,7 @@ class TestFlowFlowBase(TestFlowBase):
         with MultithreadedFlow() as flow:
             flow.consume(iterator, expected_count)
             flow.add_function(fn1)
-            flow.add_function(fn2).pass_parent().expand_params()
+            flow.add_function(fn2).inherit_params().expand_params()
 
             for output in flow:
                 self.assertEqual(1, output.get('z'))
@@ -1012,7 +1012,7 @@ class TestFlowFlowBase(TestFlowBase):
         with MultithreadedFlow() as flow:
             flow.consume(iterator, expected_count)
             flow.add_function(fn1)
-            flow.add_function(fn2).pass_parent()
+            flow.add_function(fn2).inherit_params()
 
             for output in flow:
                 self.assertEqual(5, output.get('y'))

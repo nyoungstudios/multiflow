@@ -135,7 +135,7 @@ class FlowFunction:
                 # noinspection PyRedundantParentheses
                 return ((result, *self._args), {**get_extra_kwargs(1 + self._num_of_args), **self._kwargs})
 
-    def _handle(self, exception: Exception, prev=None):
+    def _handle(self, exception: BaseException, prev=None):
         """
         Handles exception thrown by running the function
 
@@ -148,7 +148,7 @@ class FlowFunction:
             try:
                 args, kwargs = self._calc_args_and_kwargs(prev=prev)
                 return self._handler(exception, *args, **kwargs), None
-            except Exception as e:
+            except BaseException as e:
                 return e, sys.exc_info()
         else:
             return exception, sys.exc_info()
@@ -185,7 +185,7 @@ class JobOutput:
         attempts: int,
         fn_id: int = 0,
         result: Any = None,
-        exception: Exception = None,
+        exception: BaseException = None,
         args: tuple = None,
         kwargs: dict = None,
         arg_to_index: dict = None,
@@ -248,7 +248,7 @@ class JobOutput:
         """
         return self._result
 
-    def get_exception(self) -> Exception:
+    def get_exception(self) -> BaseException:
         """
         Returns the exception of the job if unsuccessful; otherwise, None
         """
@@ -584,7 +584,7 @@ class MultithreadedGeneratorBase:
                 return JobOutput(success=True, attempts=i, fn_id=fid, result=flow_fn._run(*args, **kwargs), args=args,
                                  kwargs=kwargs, arg_to_index=flow_fn._arg_to_index,
                                  kwarg_to_default=flow_fn._kwarg_to_default)
-            except Exception as e:
+            except BaseException as e:
                 # noinspection PyProtectedMember
                 exception, exec_info = flow_fn._handle(e, prev=prev)
                 if not exec_info:

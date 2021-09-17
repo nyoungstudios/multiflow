@@ -600,7 +600,14 @@ class MultithreadedGeneratorBase:
                     return JobOutput(success=True, attempts=i, fn_id=fid, result=exception, args=args, kwargs=kwargs,
                                      arg_to_index=flow_fn._arg_to_index, kwarg_to_default=flow_fn._kwarg_to_default)
                 elif isinstance(exception, FlowFailFastException):
-                    exception = exception.args[0]
+                    if exception.args:
+                        first_arg = exception.args[0]
+                        if isinstance(first_arg, BaseException):
+                            exception = first_arg
+                        else:
+                            exception = Exception(*exception.args)
+                    else:
+                        exception = Exception()
                     break
 
                 # if we are going to retry this job

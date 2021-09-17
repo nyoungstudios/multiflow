@@ -1154,6 +1154,30 @@ class TestFlowFlowBase(TestFlowBase):
 
         self.assertEqual(expected_count, failed_count)
 
+    def test_flow_fail_fast_no_args(self):
+        def always_fail(x):
+            if x % 2 == 0:
+                raise FlowFailFastException()
+            else:
+                raise FlowFailFastException(x)
+
+        expected_count = 10
+        with MultithreadedFlow(
+            retry_count=5,
+            sleep_seed=0,
+            quiet_traceback=True
+        ) as flow:
+            flow.map(always_fail, range(expected_count))
+
+            for output in flow:
+                self.assertIsInstance(output.get_exception(), Exception)
+                self.assertNotIsInstance(output.get_exception(), FlowFailFastException)
+                self.assertEqual(1, output.get_num_of_attempts())
+                if output[0] % 2 == 0:
+                    self.assertEqual('', str(output.get_exception()))
+                else:
+                    self.assertEqual(str(output[0]), str(output.get_exception()))
+
 
 class TestFlowParameterizedFlowBase(TestFlowBase):
     @parameterized.expand([

@@ -11,6 +11,7 @@ __author__ = 'Nathaniel Young'
 
 from .version import __version__
 from .thread import MultithreadedGeneratorBase, MultithreadedGenerator, MultithreadedFlow, JobOutput, \
-    FlowException
+    FlowException, FlowFailFastException
 
-__all__ = ['MultithreadedGeneratorBase', 'MultithreadedGenerator', 'MultithreadedFlow', 'JobOutput', 'FlowException']
+__all__ = ['MultithreadedGeneratorBase', 'MultithreadedGenerator', 'MultithreadedFlow', 'JobOutput', 'FlowException',
+           'FlowFailFastException']

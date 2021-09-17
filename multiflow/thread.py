@@ -42,6 +42,13 @@ class FlowException(Exception):
     pass
 
 
+class FlowFailFastException(FlowException):
+    """
+    Exception to raise and skip retries
+    """
+    pass
+
+
 class FlowFunction:
     def __init__(self, name, fn, *args, **kwargs):
         """
@@ -450,7 +457,7 @@ class MultithreadedGeneratorBase:
             self._logger_thread.join()
 
         # log final summary
-        if self._log_summary:
+        if self._log_summary and self._logger:
             for fid in self._fid_to_name:
                 self._log_status(fid)
 
@@ -578,6 +585,7 @@ class MultithreadedGeneratorBase:
         exec_info = None
         # noinspection PyProtectedMember
         args, kwargs = flow_fn._calc_args_and_kwargs(prev=prev)
+        i = 0
         for i in range(1, self._total_count + 1):
             try:
                 # noinspection PyProtectedMember
@@ -591,6 +599,9 @@ class MultithreadedGeneratorBase:
                     # noinspection PyProtectedMember
                     return JobOutput(success=True, attempts=i, fn_id=fid, result=exception, args=args, kwargs=kwargs,
                                      arg_to_index=flow_fn._arg_to_index, kwarg_to_default=flow_fn._kwarg_to_default)
+                elif isinstance(exception, FlowFailFastException):
+                    exception = exception.args[0]
+                    break
 
                 # if we are going to retry this job
                 if i < self._total_count:
@@ -615,8 +626,8 @@ class MultithreadedGeneratorBase:
             traceback.print_exception(exception, *exec_info[-2:])
 
         # noinspection PyProtectedMember
-        return JobOutput(success=False, attempts=self._total_count, fn_id=fid, exception=exception, args=args,
-                         kwargs=kwargs, arg_to_index=flow_fn._arg_to_index, kwarg_to_default=flow_fn._kwarg_to_default)
+        return JobOutput(success=False, attempts=i, fn_id=fid, exception=exception, args=args, kwargs=kwargs,
+                         arg_to_index=flow_fn._arg_to_index, kwarg_to_default=flow_fn._kwarg_to_default)
 
     def __enter__(self):
         return self

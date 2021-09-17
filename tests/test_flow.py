@@ -9,7 +9,8 @@ import time
 import unittest
 
 
-from multiflow import MultithreadedGeneratorBase, MultithreadedGenerator, MultithreadedFlow, FlowException
+from multiflow import MultithreadedGeneratorBase, MultithreadedGenerator, MultithreadedFlow, FlowException, \
+    FlowFailFastException
 from tests.setup_logger import get_logger
 
 
@@ -1125,6 +1126,33 @@ class TestFlowFlowBase(TestFlowBase):
         except Exception as e:
             self.assertIsInstance(e, FlowException)
             self.assertTrue(str(e).startswith('Second argument must be an iterable item, not of type '))
+
+    def test_flow_fail_fast(self):
+        def even_fail_fast(exception, x):
+            if x % 2 == 0:
+                raise FlowFailFastException(exception)
+            else:
+                raise exception
+
+        expected_count = 10
+        with MultithreadedFlow(
+            retry_count=5,
+            sleep_seed=0,
+            quiet_traceback=True
+        ) as flow:
+            flow.map(throw_exception, range(expected_count)).error_handler(even_fail_fast)
+
+            for output in flow:
+                self.assertIsInstance(output.get_exception(), CustomException)
+                self.assertNotIsInstance(output.get_exception(), FlowFailFastException)
+                if output[0] % 2 == 0:
+                    self.assertEqual(1, output.get_num_of_attempts())
+                else:
+                    self.assertEqual(6, output.get_num_of_attempts())
+
+            failed_count = flow.get_failed_job_count()
+
+        self.assertEqual(expected_count, failed_count)
 
 
 class TestFlowParameterizedFlowBase(TestFlowBase):

@@ -745,6 +745,28 @@ class MultithreadedFlow:
         self._args = args[1:]
         self._kwargs = kwargs
 
+    def map(self, fn: Callable, iterable: Iterable):
+        """
+        Calls the function on all of the iterable items. This is a shortcut for calling flow.consume(iterable) and
+        flow.add_function(fn). If calling this function, do not use the consume() function.
+
+        :param fn: The function to consume the iterable items in the thread pool
+        :param iterable: the iterable items to be consumed
+        :return: An instance of FlowFunction, which can specify error handling, argument expansion, etc.
+        """
+        if not isinstance(fn, Callable):
+            raise FlowException('First argument must be a callable function, not of type {}'.format(type(fn)))
+        elif not isinstance(iterable, Iterable):
+            raise FlowException('Second argument must be an iterable item, not of type {}'.format(type(iterable)))
+
+        name = fn.__name__
+        flow_fn = FlowFunction(name, fn)
+        self._fn_calls.append(flow_fn)
+
+        self._iterable = iterable
+
+        return flow_fn
+
     def add_function(self, *args, **kwargs):
         """
         Adds a function call to the process flow.
@@ -754,6 +776,7 @@ class MultithreadedFlow:
             All other arguments after that, are passed as positional arguments to the callable function after the return
             value of the previous function in the process flow (which will always be the first argument).
         :param kwargs: kwargs to be passed to the callable function in the process flow.
+        :return: An instance of FlowFunction, which can specify error handling, argument expansion, etc.
         """
         num_of_args = len(args)
         if num_of_args == 0:

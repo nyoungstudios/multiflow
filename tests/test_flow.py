@@ -1094,6 +1094,38 @@ class TestFlowFlowBase(TestFlowBase):
 
         self.assertEqual(expected_count, success_count)
 
+    def test_flow_map(self):
+        expected_count = 10
+        with MultithreadedFlow() as flow:
+            flow.map(add_one, range(expected_count))
+
+            for output in flow:
+                self.assertEqual(output[0] + 1, output.get_result())
+
+            success_count = flow.get_successful_job_count()
+
+        self.assertEqual(expected_count, success_count)
+
+    def test_flow_map_not_a_function(self):
+        try:
+            with MultithreadedFlow() as flow:
+                flow.map(None, range(1))
+
+            self.fail('Did not throw an exception')
+        except Exception as e:
+            self.assertIsInstance(e, FlowException)
+            self.assertTrue(str(e).startswith('First argument must be a callable function, not of type '))
+
+    def test_flow_map_not_iterable(self):
+        try:
+            with MultithreadedFlow() as flow:
+                flow.map(add_one, None)
+
+            self.fail('Did not throw an exception')
+        except Exception as e:
+            self.assertIsInstance(e, FlowException)
+            self.assertTrue(str(e).startswith('Second argument must be an iterable item, not of type '))
+
 
 class TestFlowParameterizedFlowBase(TestFlowBase):
     @parameterized.expand([

@@ -524,8 +524,10 @@ class TestFlowFlowBase(TestFlowBase):
             for output in flow:
                 if output:
                     self.assertIn(output.get_result(), valid_results)
+                    self.assertTrue(output.is_last())
                 else:
                     self.assertIsInstance(output.get_exception(), CustomException)
+                    self.assertFalse(output.is_last())
 
                     error_parts = str(output.get_exception()).split('|')
                     self.assertEqual('Failed because it is an even number', error_parts[0])
@@ -554,8 +556,10 @@ class TestFlowFlowBase(TestFlowBase):
                 if output.get_result() is not None:
                     self.assertIn(output.get_result(), options)
                     self.assertEqual(output.get_fn_id(), 2)
+                    self.assertTrue(output.is_last())
                 else:
                     self.assertEqual(output.get_fn_id(), 1)
+                    self.assertFalse(output.is_last())
 
             success_count = flow.get_successful_job_count()
             failed_count = flow.get_failed_job_count()

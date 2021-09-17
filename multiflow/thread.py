@@ -210,6 +210,8 @@ class JobOutput:
         self._result = result
         self._exception = exception
 
+        self._last = True
+
         self._args = args if args else ()
         self._num_of_args = len(self._args)
         self._kwargs = kwargs if kwargs else {}
@@ -218,9 +220,15 @@ class JobOutput:
 
     def is_successful(self) -> bool:
         """
-        Returns True if the job was successful; otherwise, false
+        Returns True if the job was successful; otherwise, False
         """
         return self._success
+
+    def is_last(self) -> bool:
+        """
+        Returns True if the job output is from the last function in the process flow; otherwise, False
+        """
+        return self._last
 
     def get_num_of_attempts(self) -> int:
         """
@@ -840,6 +848,8 @@ class MultithreadedFlow:
                     self._success_count += 1
                 else:
                     self._failed_count += 1
+
+                output._last = False
                 yield output
 
     def __add__(self, other):

@@ -385,9 +385,23 @@ class MultithreadedGeneratorBase:
         self._hide_fid = False
 
     def get_successful_job_count(self, fn_id: int = 0) -> int:
+        """
+        Gets the number of successful jobs
+
+        :param fn_id: The function id of which the job was submitted with. If no function id was specified, the default
+            value is 0.
+        :return: the number of successful jobs
+        """
         return self._num_of_successful_jobs[fn_id]
 
     def get_failed_job_count(self, fn_id: int = 0) -> int:
+        """
+        Gets the number of failed jobs
+
+        :param fn_id: The function id of which the job was submitted with. If no function id was specified, the default
+            value is 0.
+        :return: the number of failed jobs
+        """
         return self._num_of_failed_jobs[fn_id]
 
     def get_output(self) -> Generator[JobOutput, None, None]:
@@ -707,6 +721,8 @@ class MultithreadedFlow:
         self._failed_count = 0
         self._upstream_success_count = 0
         self._upstream_failed_count = 0
+        self._num_of_successful_jobs = {}
+        self._num_of_failed_jobs = {}
 
     def consume(self, *args, **kwargs):
         """
@@ -770,17 +786,39 @@ class MultithreadedFlow:
 
         return flow_fn
 
-    def get_successful_job_count(self, last=False) -> int:
-        if last:
-            return self._success_count
-        else:
-            return self._success_count + self._upstream_success_count
+    def get_successful_job_count(self, fn_id: int = None, last: bool = False) -> int:
+        """
+        Gets the number of successful jobs
 
-    def get_failed_job_count(self, last=False) -> int:
-        if last:
-            return self._failed_count
+        :param fn_id: The function id to explicitly get the count from
+        :param last: if True, will only return the count from the last flow function; otherwise, will return the total
+            count
+        :return: the number of successful jobs
+        """
+        if fn_id is None:
+            if last:
+                return self._success_count
+            else:
+                return self._success_count + self._upstream_success_count
         else:
-            return self._failed_count + self._upstream_failed_count
+            return self._num_of_successful_jobs.get(fn_id, 0)
+
+    def get_failed_job_count(self, fn_id: int = None, last: bool = False) -> int:
+        """
+        Gets the number of failed jobs
+
+        :param fn_id: The function id to explicitly get the count from
+        :param last: if True, will only return the count from the last flow function; otherwise, will return the total
+            count
+        :return: the number of failed jobs
+        """
+        if fn_id is None:
+            if last:
+                return self._failed_count
+            else:
+                return self._failed_count + self._upstream_failed_count
+        else:
+            return self._num_of_failed_jobs.get(fn_id, 0)
 
     def get_output(self) -> Generator[JobOutput, None, None]:
         if not self._fn_calls:
@@ -819,6 +857,9 @@ class MultithreadedFlow:
                         else:
                             additional_outputs[index].append(item)
 
+                    self._num_of_successful_jobs[index - 1] = prev_flow.get_successful_job_count(fn_id=index - 1)
+                    self._num_of_failed_jobs[index - 1] = prev_flow.get_failed_job_count(fn_id=index - 1)
+
         # builds the multithreaded process flow
         num_of_fns = len(self._fn_calls)
         for i in range(num_of_fns):
@@ -842,11 +883,15 @@ class MultithreadedFlow:
 
         # yields the output from the final process flow
         with process_flow[-1] as final_flow:
+            self._num_of_successful_jobs[num_of_fns - 1] = 0
+            self._num_of_failed_jobs[num_of_fns - 1] = 0
             for output in final_flow.get_output():
                 if output:
                     self._success_count += 1
+                    self._num_of_successful_jobs[output.get_fn_id()] += 1
                 else:
                     self._failed_count += 1
+                    self._num_of_failed_jobs[output.get_fn_id()] += 1
                 yield output
 
         # yields output for upstream successes and exceptions

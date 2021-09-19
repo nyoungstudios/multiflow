@@ -40,13 +40,14 @@ Additionally, `MultithreadedFlow` supports these additional arguments:
 * `log_only_last` - If True, only the last item in the process flow will be periodically logged and log summary (provided that a logger is provided)
 
 ## Job Output
-All there classes return an instance pf `JobOutput`. Here are the functions of the `JobOutput` class and what they return.
+All there classes yield an instance of `JobOutput` when you iterate over the `get_output()` function output. Here are the functions of the `JobOutput` class and what they return.
 * `is_successful()` - True if the job was successful, False otherwise
-* `get_num_of_attempts()` - The total number of attempts it took (initial run plus retries)
+* `is_last()` - True if the job output is from the last function in the process flow; otherwise, False (only used for the `MultithreadedFlow`)
+* `get_num_of_attempts()` - The total number of attempts the job was run (initial run plus retries)
 * `get_fn_id()` - The function id (only really used for the `MultithreadedFlow` for the index of the function added to the process flow)
 * `get_result()` - The result of the job
 * `get_exception()` - The exception if not successful
-* `get()` - gets the value of the kwarg passed into the function
+* `get()` - gets the value of the arg or kwarg passed into the function by name. Additionally, it will get the default value of the kwarg if it was not overwritten when it was run
 
 In order to start the thread pool to do the work and get the output generator, call the `get_output()` function.
 ```python
@@ -66,10 +67,12 @@ with MultithreadedFlow() as flow:
         pass
 ```
 
-Additionally, the `JobOutput` class has some special functions. Here is what they return.
-* `bool` - will return `is_successful()`
-* `repr` - will return the repr value of `get_result()`
-* `str` - will return the string value of `get_result()`
+Additionally, the `JobOutput` class has some special functions.
+* If you cast the `JobOutput` object to boolean, it will return `is_successful()`
+* If you cast the `JobOutput` object using `repr()`, it will return the reps value of `get_result()`
+* If you cast the `JobOutput` object to string, it will return the string value of `get_result()`
+* If you index the `JobOutput` object with the square brackets `[]`, it will return argument value at that index passed into the function
+* If you use the `getattr()` function on the `JobOutput` object, it will be the same as calling the `get()` function
 
 
 ## MultithreadedFlow Overview
@@ -104,6 +107,15 @@ Additionally, the `JobOutput` class has some special functions. Here is what the
   # supports adding a function with a custom name as the first positional argument used for logging, args, and kwargs
   flow.add_function('Custom name', fn, *args, **kwargs)
 
+  ```
+* `map` - Sets the consuming function and input iterable at the same time. A shortcut for calling the `consume` and `add_function` separately
+* 
+  ```python
+  with MultithreadedFlow() as flow:
+      flow.map(fn, iterable)
+
+      for output in flow:
+          pass
   ```
 
 * `get_output` - As mentioned about, starts the thread pool and yields the outputs as a generator object

@@ -254,3 +254,22 @@ with MultithreadedFlow() as flow:
     for output in flow:
         print(output)
 ```
+
+### Argument inheritance
+Argument inheritance allows you to inherit args or kwargs from a previous flow function to be passed onto the next function
+
+```python
+def fn1(x, y=5):
+    return x
+
+def fn2(x, y=0):
+    return x + y
+
+with MultithreadedFlow() as flow:
+    flow.consume(range(10))
+    flow.add_function(fn1)
+    flow.add_function(fn2).inherit_params()
+
+    for output in flow:
+        print(output.get('y'))  # this is 5
+```

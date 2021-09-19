@@ -225,11 +225,9 @@ def handle_error(e, x):
         # otherwise, raise error to still mark it as failed
         raise e
 
-
 with MultithreadedFlow() as flow:
     flow.consume(items)
     flow.add_function(task).error_handler(handle_error)
-
 ```
 
 
@@ -242,10 +240,8 @@ def iterator(n):
         for j in range(n):
             yield i, j
 
-
 def add(x, y):
     return x + y
-
 
 with MultithreadedFlow() as flow:
     flow.consume(iterator, 10)

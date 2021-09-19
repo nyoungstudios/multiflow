@@ -985,7 +985,7 @@ class TestFlowFlowBase(TestFlowBase):
 
         self.assertEqual(expected_count, success_count)
 
-    def test_flow_pass_parent(self):
+    def test_flow_inherit(self):
         def fn1(x, y=5):
             return x
 
@@ -1006,7 +1006,7 @@ class TestFlowFlowBase(TestFlowBase):
 
         self.assertEqual(expected_count, success_count)
 
-    def test_flow_not_pass_parent(self):
+    def test_flow_not_inherit(self):
         def fn1(x, y=5):
             return x
 
@@ -1027,7 +1027,7 @@ class TestFlowFlowBase(TestFlowBase):
 
         self.assertEqual(expected_count, success_count)
 
-    def test_flow_pass_parent_with_kwargs(self):
+    def test_flow_inherit_with_kwargs(self):
         def fn1(x, y=5, z=7):
             return {'x': x, 'z': 1}
 
@@ -1050,7 +1050,7 @@ class TestFlowFlowBase(TestFlowBase):
 
         self.assertEqual(expected_count, success_count)
 
-    def test_flow_pass_parent_index_output(self):
+    def test_flow_inherit_index_output(self):
         def fn1(x, y=5):
             return x
 

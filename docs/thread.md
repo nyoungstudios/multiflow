@@ -236,6 +236,9 @@ with MultithreadedFlow() as flow:
     flow.add_function(task).error_handler(handle_error)
 ```
 
+### Retries
+If you want to automatically retry the job if it raises an exception, you can set the value of `retry_count` (the default of 0 means that the job will not be retried). If you set the retry count value to 2 for example, but on certain exceptions you want to not retry the job, just wrap your exception in the `FlowFailFastException` class. And it will automatically fail that job run and return the child exception in the `JobOutput`'s function `get_exception()`.
+
 
 ### Argument expansion
 Argument expansion allows you to expand tuple and dictionary types in a process flow to be passed as `*args` and `**kwargs` to the next function.

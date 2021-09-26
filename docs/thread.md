@@ -119,8 +119,8 @@ Additionally, the `JobOutput` class has some special functions.
   ```
 
 * `get_output` - As mentioned about, starts the thread pool and yields the outputs as a generator object
-* `get_successful_job_count` - gets the number of successful jobs
-* `get_failed_job_count` - gets the number of failed jobs
+* `get_successful_job_count` - gets the number of successful jobs. By default, this will return all of the succesful jobs including jobs that exited early, but still were successful. If you want to find the number of jobs that were successful based on a specific function id, you can pass the 0 indexed value to `fn_id`. Alternatively, if you want to find all of the successful jobs without the ones that exited early, you can pass the `last=True` kwarg. 
+* `get_failed_job_count` - gets the number of failed jobs. Both of these options from `get_successful_job_count` also apply to this function as well.
 
 
 ## Base Overview
@@ -153,7 +153,8 @@ with flow:
 ```
 
 ## Logging
-All three classes support logging, and as mentioned above, you can pass a `log_format` for the periodic logger to use. The `log_format` supports both C style formatting (with %) and the newer Pythonic curly bracket formatting. Here are all of  the keys that you can use in the periodic log formatter.
+### Custom format
+All three classes support logging, and as mentioned above, you can pass a `log_format` for the periodic logger to use (as well as the log summary). The `log_format` supports both C style formatting (with %) and the newer Pythonic curly bracket formatting. Here are all of  the keys that you can use in the periodic log formatter.
 ```python
 {
     'success': 0,       # the number of successfully completed jobs
@@ -169,14 +170,19 @@ How to use?
 ```python
 # C style formatting
 log_fmt = '%(success)s job%(s_plural)s completed successfully. %(failed)s job%(f_plural)s failed.'
-with MultithreadedFlow(log_format=log_fmt, logger=logger, log_periodically=True) as flow:
+with MultithreadedFlow(log_format=log_fmt, logger=logger, log_periodically=True, log_summary=True) as flow:
     ...
 
 # Python style formatting
 log_fmt = '{success} job{s_plural} completed successfully. {failed} job{f_plural} failed.'
-with MultithreadedFlow(log_format=log_fmt, logger=logger, log_periodically=True) as flow:
+with MultithreadedFlow(log_format=log_fmt, logger=logger, log_periodically=True, log_summary=True) as flow:
     ...
 ```
+
+### Default format
+If you pass `log_periodically=True`, `log_summary=True`, or `log_all=True` but do not pass the `log_format` value, it will use the default logging format. The default logging format is: `'{success} job{s_plural} completed successfully. {failed} job{f_plural} failed.'`. 
+
+Additionally, if you are using `MultithreadedFlow`, it will prepend the name of the function along with the function id (`fn_id`) in parentheses if there are more than one function in the process flow.
 
 ## Special features
 These are some additional special features.

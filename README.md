@@ -16,6 +16,10 @@ The ability to accept an input generator object while yielding an output generat
 
 A great use case for this is streaming data. For example, with `multiflow` and [`smart_open`](https://github.com/RaRe-Technologies/smart_open), you could stream images from S3 and process them in a multithreaded environment before exporting them elsewhere.
 
+## Install
+```sh
+pip install multiflow
+```
 
 ## Quickstart
 ```python
@@ -31,7 +35,7 @@ def transform(image_path):
 
 
 with MultithreadedFlow() as flow:
-    flow.consume(image_paths)  # can accept generator object or iterable item
+    flow.consume(image_paths)  # can accept generator object or iterable item (see examples below for generator)
     flow.add_function(transform)
 
     for output in flow:
@@ -45,11 +49,8 @@ with MultithreadedFlow() as flow:
 
 ```
 
-## Install
-```sh
-pip install multiflow
-```
-
+## Examples
+For a working program using `multiflow`, see this [example](https://github.com/nyoungstudios/multiflow/blob/main/examples/resize/resize.py) which resizes a S3 bucket of images to 50% and saves the resized images locally.
 
 ## Documentation
 The documentation is still a work in progress, but for the most up to date documentation, please see this [page](https://github.com/nyoungstudios/multiflow/blob/main/docs/thread.md).

@@ -59,7 +59,7 @@ class FlowFunction:
         :param args: args for the function
         :param kwargs: kwargs for the function
         """
-        self.name = name
+        self._name = name
         self._fn = fn
         self._args = args
         self._kwargs = kwargs
@@ -574,7 +574,8 @@ class MultithreadedGeneratorBase:
         """
         Submits job to thread pool
         """
-        self._fid_to_name[fid] = flow_fn.name
+        # noinspection PyProtectedMember
+        self._fid_to_name[fid] = flow_fn._name
         self._input_queue.put_nowait(self._executor.submit(self._call_fn_and_catch_exception, fid, flow_fn, prev=prev))
 
     def _call_fn_and_catch_exception(self, fid: int, flow_fn: FlowFunction, prev=None):

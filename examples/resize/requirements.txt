@@ -1,0 +1,4 @@
+boto3
+multiflow
+Pillow
+smart_open

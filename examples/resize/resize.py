@@ -159,4 +159,3 @@ if __name__ == '__main__':
         failed_count = flow.get_failed_job_count()
 
     print(json.dumps(s3_path_to_out_path, indent=4))
-

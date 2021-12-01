@@ -639,12 +639,12 @@ class TestFlowFlowBase(TestFlowBase):
             self.assertEqual(1, failed_count)
 
             expected_logs = [
-                'WARNING:{}:{}(): Retrying job after catching exception: {}'
-                    .format(log_name, throw_exception.__name__, exception_str),
-                'WARNING:{}:{}(): Retrying job after catching exception: {}'
-                    .format(log_name, throw_exception.__name__, exception_str),
-                'ERROR:{}:{}(): Job failed with exception: {}'
-                    .format(log_name, throw_exception.__name__, exception_str)
+                'WARNING:{}:{}(): Retrying job after catching exception: {}'.format(
+                    log_name, throw_exception.__name__, exception_str),
+                'WARNING:{}:{}(): Retrying job after catching exception: {}'.format(
+                    log_name, throw_exception.__name__, exception_str),
+                'ERROR:{}:{}(): Job failed with exception: {}'.format(
+                    log_name, throw_exception.__name__, exception_str)
             ]
 
             self.assertEqual(expected_logs, log.output)
@@ -669,7 +669,6 @@ class TestFlowFlowBase(TestFlowBase):
                     self.assertEqual(1, output.get_num_of_attempts())
 
                 failed_count = flow.get_failed_job_count()
-
 
             self.assertEqual(expected_failed, failed_count)
 
@@ -728,10 +727,9 @@ class TestFlowFlowBase(TestFlowBase):
 
             self.assertEqual(expected_count, count)
 
-
             expected_logs = [
-                'INFO:{}:{}: {} jobs completed successfully. 0 jobs failed.'
-                    .format(log_name, returns_item.__name__, expected_count)
+                'INFO:{}:{}: {} jobs completed successfully. 0 jobs failed.'.format(
+                    log_name, returns_item.__name__, expected_count)
             ]
 
             self.assertEqual(expected_logs, log.output)
@@ -794,7 +792,6 @@ class TestFlowFlowBase(TestFlowBase):
                     self.assertEqual(sleeper.__name__, log_parts[2])
                     self.assertIsNotNone(log_regex.match(log_parts[3]), log_parts[3])
 
-
             expected_summary_log = 'INFO:{}:{}: {} jobs completed successfully. {} job failed.'.format(
                 log_name, sleeper.__name__, expected_success, expected_failed
             )
@@ -804,7 +801,6 @@ class TestFlowFlowBase(TestFlowBase):
             self.assertTrue(has_one_periodic)
             self.assertTrue(has_one_warning)
             self.assertTrue(has_one_error)
-
 
             self.assertEqual(expected_success, success_count)
             self.assertEqual(expected_failed, failed_count)
